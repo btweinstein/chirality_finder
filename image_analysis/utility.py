@@ -6,12 +6,14 @@ Created on Dec 14, 2013
 
 import exifread
 import pylab as pl
-from skimage import io
+import skimage.io
+
 
 def niceDisplay(image, display, scaleFactor=0.25):
     newImage = image.applyLayers()
     newImage.resize( int(newImage.width*scaleFactor), int(newImage.height*scaleFactor) ).save(display)
-    
+
+
 def getScale(imagePath):
 
     f = open(imagePath, 'rb')
@@ -24,6 +26,7 @@ def getScale(imagePath):
     
     return 1/pixelPerMM
 
+
 def showImage(image):
     pl.figure()
-    io.imshow(image, interpolation='None')
+    skimage.io.imshow(image, interpolation='None')

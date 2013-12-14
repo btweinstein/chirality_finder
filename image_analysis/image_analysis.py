@@ -1,15 +1,14 @@
-'''
+"""
 Created on Dec 14, 2013
 
 @author: bryan
-'''
+"""
 
 # Package imports
-from image_analysis.image_analysis.utility import *
+from utility import *
 # External library imports
 import skimage as ski
-from ski import measure
-from ski import color
+import skimage.color
 
 import pandas as pd
 import numpy as np
@@ -18,9 +17,10 @@ import SimpleCV as cv
 
 disp = cv.Display(displaytype='notebook')
 
+
 def findBrightfieldCircle(brightfield, showPictures=True):
-    '''Finds the circle (boundary) in a brightfield numpy image. 
-    Returns the center and radius of the circle.'''
+    """Finds the circle (boundary) in a brightfield numpy image.
+    Returns the center and radius of the circle."""
     
     brightfieldCV = cv.Image(brightfield)
     filtered = brightfieldCV.bandPassFilter(0.05,0.8)
@@ -36,7 +36,7 @@ def findBrightfieldCircle(brightfield, showPictures=True):
         brightfieldCV = brightfieldCV.applyLayers()
         showImage(brightfieldCV.getNumpy())
     
-    return (center, radius)
+    return center, radius
 
 def getPositionData(coords, center):
     (x, y) = (coords[:, 0], coords[:, 1])
@@ -53,12 +53,12 @@ def getPositionData(coords, center):
     return currentData
 
 def reduceLabelsToPixel(labels, center, showPictures=True):    
-    '''Reduces the labeled sectors down to individual pixels by
+    """Reduces the labeled sectors down to individual pixels by
     essentially taking the median theta at every radius in each blob.
     Currently, this cannot handle multi-valued sectors (i.e. sectors that
     annihilate) as the median will be in the middle of the sector.
     
-    Returns the new labels.''' 
+    Returns the new labels."""
     
     # Make the median disk length greater than 1.4 so that you can
     # get 8 connected neighbors
@@ -67,9 +67,9 @@ def reduceLabelsToPixel(labels, center, showPictures=True):
 
     thinnedLabels = 0 * labels
 
-    if showPictures: showImage(color.label2rgb(labels - 1))
+    if showPictures: showImage(ski.color.label2rgb(labels - 1))
     
-    props = measure.regionprops(labels)
+    props = ski.measure.regionprops(labels)
     for p in props:
         currentLabel = p.label
         coords = p.coords
@@ -92,58 +92,14 @@ def reduceLabelsToPixel(labels, center, showPictures=True):
             # Get median line theta
             thinnedLabels[medianX, medianY] = currentLabel
             
-    if showPictures: showImage(color.label2rgb(thinnedLabels - 1))
-    showImage(color.label2rgb(thinnedLabels - 1))
-    return thinnedLabels
-
-def splitLabels(labels, center, showPictures=True):    
-    '''Splits labels into pieces based on connected components
-    as a funciton of R.''' 
-    
-    # Move in the opposite direction of growth and cut
-    medianDiskLength = 1.5
-    radiusStep = .5
-
-    newLabels = 0 * labels
-    labelCounter = 1
-
-    if showPictures: showImage(ski.color.label2rgb(labels - 1))
-    imageDimensions = np.shape(labels)
-    props = ski.measure.regionprops(labels)
-    for p in props:
-        currentLabel = p.label
-        coords = p.coords
-        currentData = getPositionData(coords, center)
-        
-        minDistance = currentData['r'].min()
-        maxDistance = currentData['r'].max()
-        
-        radiusList = np.arange(minDistance, maxDistance, radiusStep)
-        
-        currentBlobPic = np.zeros(imageDimensions)
-        for radius in radiusList:
-            # Get all points that are essentially at this radius
-            dataAtRadius = currentData[np.abs(radius - currentData['r']) <= medianDiskLength]
-            # Figure out if the regions are disconnected; if so, assign them
-            # different names
-            currentRadiusPic = np.zeros(imageDimensions)
-            currentRadiusPic[dataAtRadius['x'], dataAtRadius['y']] = 1
-            connectedComponents = ski.morphology.label(currentRadiusPic, neighbors=8, background=0) + 1
-            
-            representativeTheta = np.array([])
-            radiusLabelMax = np.max(connectedComponents)
-            for l in range(1, radiusLabelMax):
-                (radX, radY) = np.nonzero(connectedComponents == l)
-                radX = radX[0]
-                radY = radY[0]
-                currentThetaRow = dataAtRadius[(dataAtRadius['x']==radX) & (dataAtRadius['y']==radY)]
-                
+    if showPictures: showImage(ski.color.label2rgb(thinnedLabels - 1))
+    showImage(ski.color.label2rgb(thinnedLabels - 1))
     return thinnedLabels
 
 def filterSectors(labels, center, minLength=250, showPictures=True):
-    ''' Returns a new labeled image with poor quality sectors
+    """ Returns a new labeled image with poor quality sectors
     filtered out. This basically means the sector is not long
-    enough.'''
+    enough."""
     
     if showPictures:
         labelImage = ski.color.label2rgb(labels - 1)
@@ -175,8 +131,7 @@ def filterSectors(labels, center, minLength=250, showPictures=True):
     return filteredLabels
 
 def getChiralityData(labels, center):
-    minLabel = 1
-    maxLabel = np.max(labels)
+
     chiralityData = pd.DataFrame()
     
     uniqueLabels = np.unique(labels)
@@ -201,3 +156,68 @@ def getChiralityData(labels, center):
         
     chiralityData = chiralityData.reset_index(drop=True)
     return chiralityData
+
+import skimage.io
+import skimage.filter
+import skimage.morphology
+import skimage.draw
+
+def findSectors(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=False):
+    """Finds the sectors in an image by looking at the first
+    fluorescence image (the first channel).
+
+    Returns a labeled image with regions filed down to
+    approximately a single pixel."""
+
+    img = ski.io.imread(path)
+    if showPictures: showImage(img)
+
+    fluor1 = img[:, :, 0]
+    fluor2 = img[:, :, 1]
+    brightfield = img[:, :, 2]
+
+    ### Use SimpleCV to find circle for now ###
+    (center, radius) = findBrightfieldCircle(brightfield, showPictures=showPictures)
+
+    # Filter, clean things up
+    filtered = ski.filter.rank.median(fluor1, ski.morphology.disk(5))
+    if showPictures: showImage(filtered)
+
+    # Find sectors
+    edges = ski.filter.sobel(filtered)
+    if showPictures: showImage(edges)
+
+    # Cut out center
+    (rr, cc) = ski.draw.circle(center[0], center[1], homelandCutFactor*radius)
+    edges[rr, cc] = 0
+    # Cut out edge as we get artifacts there. Note that we could fix this by
+    # using some sort of bandpass filter, but python is being a pain so we won't
+    # do that right now
+
+    (rr, cc) = ski.draw.circle(center[0], center[1], radius*edgeCutFactor)
+    mask = np.zeros(np.shape(edges))
+    mask[rr, cc] = 1
+
+    edges = np.multiply(mask, edges)
+
+    # Binarize
+    binaryValue = ski.filter.threshold_otsu(edges)
+    binary = edges > binaryValue
+
+    binaryLabels = ski.morphology.label(binary, neighbors=8, background=0) + 1
+    showImage(ski.color.label2rgb(binaryLabels - 1))
+
+    # Filter the image...the hard part. Just rememember to look at image on full scale
+    # or things look discontinuous
+    thinnedLabels = reduceLabelsToPixel(binaryLabels, center, showPictures=False)
+
+    # Filter out small labels
+    necessaryLength = .8*radius - homelandCutFactor*radius
+    filteredLabels = filterSectors(thinnedLabels, center, minLength=necessaryLength, showPictures=showPictures)
+
+    if showPictures: showImage(ski.color.label2rgb(filteredLabels - 1))
+
+    # Get the data of the sectors
+    chiralityData = getChiralityData(filteredLabels, center)
+    #return (filteredLabels, chiralityData)
+    return filteredLabels, chiralityData
