@@ -1,10 +1,16 @@
-import fractions
+'''
+Created on Dec 14, 2013
+
+@author: bryan
+'''
+
 import exifread
 import pylab as pl
+from skimage import io
 
 def niceDisplay(image, display, scaleFactor=0.25):
     newImage = image.applyLayers()
-    newImage.resize( int(newImage.width*scaleFactor), int(newImage.height*scaleFactor) ).save(disp)
+    newImage.resize( int(newImage.width*scaleFactor), int(newImage.height*scaleFactor) ).save(display)
     
 def getScale(imagePath):
 
@@ -20,4 +26,4 @@ def getScale(imagePath):
 
 def showImage(image):
     pl.figure()
-    ski.io.imshow(image, interpolation='None')
+    io.imshow(image, interpolation='None')
