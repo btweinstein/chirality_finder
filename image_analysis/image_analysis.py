@@ -5,14 +5,13 @@ Created on Dec 14, 2013
 '''
 
 # Package imports
-from image_analysis.utility import *
+from image_analysis.image_analysis.utility import *
 # External library imports
 import skimage as ski
 from ski import measure
 from ski import color
 
 import pandas as pd
-import scipy as sp
 import numpy as np
 # Other imports 
 import SimpleCV as cv

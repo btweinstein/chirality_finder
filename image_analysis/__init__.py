@@ -1,4 +1,3 @@
-import fractions
 import exifread
 import pylab as pl
 
