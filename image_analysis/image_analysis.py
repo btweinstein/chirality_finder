@@ -9,10 +9,12 @@ from utility import *
 # External library imports
 import skimage as ski
 import skimage.color
-
 import pandas as pd
 import numpy as np
-# Other imports 
+import skimage.io
+import skimage.filter
+import skimage.morphology
+import skimage.draw
 import SimpleCV as cv
 
 disp = cv.Display(displaytype='notebook')
@@ -156,11 +158,6 @@ def getChiralityData(labels, center):
         
     chiralityData = chiralityData.reset_index(drop=True)
     return chiralityData
-
-import skimage.io
-import skimage.filter
-import skimage.morphology
-import skimage.draw
 
 def findSectors(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=False):
     """Finds the sectors in an image by looking at the first
