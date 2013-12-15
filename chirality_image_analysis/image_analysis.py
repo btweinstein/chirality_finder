@@ -248,17 +248,19 @@ def findSectors(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=Fa
     # Binarize
     binaryValue = ski.filter.threshold_otsu(edges)
     binary = edges > binaryValue
+    # Skeletonize
+    skeleton = ski.morphology.skeletonize(binary)
+    if showPictures: showImage(skeleton)
+    # Prune the skeleton
+    bpImage = findBranchPoints(skeleton)
+    if showPictures: showImage(bpImage)
 
-    binaryLabels = ski.morphology.label(binary, neighbors=8, background=0) + 1
-    showImage(ski.color.label2rgb(binaryLabels - 1))
-
-    # Filter the image...the hard part. Just rememember to look at image on full scale
-    # or things look discontinuous
-    thinnedLabels = reduceLabelsToPixel(binaryLabels, center, showPictures=False)
+    binaryLabels = ski.morphology.label(skeleton, neighbors=8, background=0) + 1
+    if showPictures: showImage(ski.color.label2rgb(binaryLabels - 1))
 
     # Filter out small labels
     necessaryLength = .8*radius - homelandCutFactor*radius
-    filteredLabels = filterSectors(thinnedLabels, center, minLength=int(necessaryLength), showPictures=showPictures)
+    filteredLabels = filterSectors(binaryLabels, center, minLength=int(necessaryLength), showPictures=showPictures)
 
     if showPictures: showImage(ski.color.label2rgb(filteredLabels - 1))
 
