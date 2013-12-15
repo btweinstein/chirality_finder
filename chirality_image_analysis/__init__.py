@@ -12,7 +12,7 @@ def getScale(imagePath):
     # Return Exif tags
     tags = exifread.process_file(f)
     f.close()
-    
+
     scaleFraction = tags['Image XResolution'].values[0]
     pixelPerMM= float(scaleFraction.num)/float(scaleFraction.den)
     

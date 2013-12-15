@@ -15,12 +15,11 @@ import skimage.io
 import skimage.filter
 import skimage.morphology
 import skimage.draw
+import skimage.measure
 import SimpleCV as cv
 
-disp = cv.Display(displaytype='notebook')
 
-
-def findBrightfieldCircle(brightfield, showPictures=True):
+def findBrightfieldCircle(brightfield, showPictures=False):
     """Finds the circle (boundary) in a brightfield numpy image.
     Returns the center and radius of the circle."""
     
@@ -34,7 +33,7 @@ def findBrightfieldCircle(brightfield, showPictures=True):
     
     if showPictures:
         circs.image = brightfieldCV
-        circs.draw(width=12)
+        circs.draw(width=6)
         brightfieldCV = brightfieldCV.applyLayers()
         showImage(brightfieldCV.getNumpy())
     
@@ -167,8 +166,8 @@ def findSectors(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=Fa
     approximately a single pixel."""
 
     img = ski.io.imread(path)
-    if showPictures: showImage(img)
-
+    if showPictures:
+        showImage(img)
     fluor1 = img[:, :, 0]
     fluor2 = img[:, :, 1]
     brightfield = img[:, :, 2]
@@ -210,11 +209,10 @@ def findSectors(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=Fa
 
     # Filter out small labels
     necessaryLength = .8*radius - homelandCutFactor*radius
-    filteredLabels = filterSectors(thinnedLabels, center, minLength=necessaryLength, showPictures=showPictures)
+    filteredLabels = filterSectors(thinnedLabels, center, minLength=int(necessaryLength), showPictures=showPictures)
 
     if showPictures: showImage(ski.color.label2rgb(filteredLabels - 1))
 
     # Get the data of the sectors
     chiralityData = getChiralityData(filteredLabels, center)
-    #return (filteredLabels, chiralityData)
     return filteredLabels, chiralityData
