@@ -1,9 +1,10 @@
 import exifread
 import pylab as pl
+import skimage as ski
 
 def niceDisplay(image, display, scaleFactor=0.25):
     newImage = image.applyLayers()
-    newImage.resize( int(newImage.width*scaleFactor), int(newImage.height*scaleFactor) ).save(disp)
+    newImage.resize( int(newImage.width*scaleFactor), int(newImage.height*scaleFactor) ).save(display)
     
 def getScale(imagePath):
 
