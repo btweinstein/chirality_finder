@@ -1,12 +1,13 @@
-'''
+"""
 Created on Dec 14, 2013
 
 @author: bryan
-'''
+"""
 
 import exifread
 import pylab as pl
 import skimage.io
+import numpy as np
 
 
 def niceDisplay(image, display, scaleFactor=0.25):
@@ -30,3 +31,10 @@ def getScale(imagePath):
 def showImage(image):
     pl.figure()
     skimage.io.imshow(image, interpolation='None')
+
+def loopTheta(theta):
+    if theta < -np.pi:
+        theta += 2*np.pi
+    elif theta > np.pi:
+        theta += -2*np.pi
+    return theta

@@ -53,6 +53,7 @@ def getPositionData(coords, center):
     
     return currentData
 
+
 def reduceLabelsToPixel(labels, center, showPictures=True):    
     """Reduces the labeled sectors down to individual pixels by
     essentially taking the median theta at every radius in each blob.
@@ -199,10 +200,8 @@ def findSectors(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=Fa
     # Binarize
     binaryValue = ski.filter.threshold_otsu(edges)
     binary = edges > binaryValue
-    # Skeletonize
-    skeleton = ski.morphology.skeletonize(binary)
-    if showPictures: showImage(skeleton)
-    # Prune the skeleton
+
+
 
     prunedSkeleton = prune_skeleton(skeleton, showPictures)
 
