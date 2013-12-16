@@ -17,7 +17,7 @@ import skimage.morphology
 import skimage.draw
 import skimage.measure
 import SimpleCV as cv
-
+from prune_skeleton import prune_skeleton
 
 def findBrightfieldCircle(brightfield, showPictures=False):
     """Finds the circle (boundary) in a brightfield numpy image.
@@ -158,55 +158,6 @@ def getChiralityData(labels, center):
     chiralityData = chiralityData.reset_index(drop=True)
     return chiralityData
 
-# Branch point finder
-import mahotas as mh
-def findBranchPoints(binary):
-    """Finds all branch points in a binary image. Useful
-    for pruning a skeleton. """
-    xbranch0  = np.array([[1,0,1],[0,1,0],[1,0,1]])
-    xbranch1 = np.array([[0,1,0],[1,1,1],[0,1,0]])
-    tbranch0 = np.array([[0,0,0],[1,1,1],[0,1,0]])
-    tbranch1 = np.flipud(tbranch0)
-    tbranch2 = tbranch0.T
-    tbranch3 = np.fliplr(tbranch2)
-    tbranch4 = np.array([[1,0,1],[0,1,0],[1,0,0]])
-    tbranch5 = np.flipud(tbranch4)
-    tbranch6 = np.fliplr(tbranch4)
-    tbranch7 = np.fliplr(tbranch5)
-    ybranch0 = np.array([[1,0,1],[0,1,0],[2,1,2]])
-    ybranch1 = np.flipud(ybranch0)
-    ybranch2 = ybranch0.T
-    ybranch3 = np.fliplr(ybranch2)
-    ybranch4 = np.array([[0,1,2],[1,1,2],[2,2,1]])
-    ybranch5 = np.flipud(ybranch4)
-    ybranch6 = np.fliplr(ybranch4)
-    ybranch7 = np.fliplr(ybranch5)
-
-    br = mh.morph.hitmiss(binary,xbranch0)
-    br+= mh.morph.hitmiss(binary,xbranch1)
-
-    br+= mh.morph.hitmiss(binary,tbranch0)
-    br+= mh.morph.hitmiss(binary,tbranch1)
-    br+= mh.morph.hitmiss(binary,tbranch2)
-    br+= mh.morph.hitmiss(binary,tbranch3)
-    br+= mh.morph.hitmiss(binary,tbranch4)
-    br+= mh.morph.hitmiss(binary,tbranch5)
-    br+= mh.morph.hitmiss(binary,tbranch6)
-    br+= mh.morph.hitmiss(binary,tbranch7)
-
-    br+= mh.morph.hitmiss(binary,ybranch0)
-    br+= mh.morph.hitmiss(binary,ybranch1)
-    br+= mh.morph.hitmiss(binary,ybranch2)
-    br+= mh.morph.hitmiss(binary,ybranch3)
-    br+= mh.morph.hitmiss(binary,ybranch4)
-    br+= mh.morph.hitmiss(binary,ybranch5)
-    br+= mh.morph.hitmiss(binary,ybranch6)
-    br+= mh.morph.hitmiss(binary,ybranch7)
-
-    return br
-
-
-
 def findSectors(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=False):
     """Finds the sectors in an image by looking at the first
     fluorescence image (the first channel).
@@ -252,10 +203,10 @@ def findSectors(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=Fa
     skeleton = ski.morphology.skeletonize(binary)
     if showPictures: showImage(skeleton)
     # Prune the skeleton
-    bpImage = findBranchPoints(skeleton)
-    if showPictures: showImage(bpImage)
 
-    binaryLabels = ski.morphology.label(skeleton, neighbors=8, background=0) + 1
+    prunedSkeleton = prune_skeleton(skeleton, showPictures)
+
+    binaryLabels = ski.morphology.label(prunedSkeleton, neighbors=8, background=0) + 1
     if showPictures: showImage(ski.color.label2rgb(binaryLabels - 1))
 
     # Filter out small labels
