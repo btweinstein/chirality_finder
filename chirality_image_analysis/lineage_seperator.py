@@ -66,6 +66,10 @@ class Circle:
 
         return poi_data
 
+    def run(self):
+        while self._radius >= self._minRadius:
+            self.doStep()
+
     def doStep(self):
         self.setPointsAtRadius()
 
@@ -79,7 +83,7 @@ class Circle:
             # Create a sector
             newSector = Circle_Sector(g['x'], g['y'], self._radius, self.center)
             newSector._label = label
-            currentSectors = currentSectors.append(newSector)
+            currentSectors.append(newSector)
 
         if self._sectorHistory is None:
             self._sectorHistory = currentSectors
@@ -90,20 +94,32 @@ class Circle:
                 for newSector in currentSectors:
                     # Find overlaps
                     if oldSector.checkOverlap(newSector):
-                        oldSector._childSectors = oldSector._childSectors.append(newSector)
-                        newSector._parentSectors = newSector._parentSectors.append(oldSector)
+                        oldSector._childSectors.append(newSector)
+                        newSector._parentSectors.append(oldSector)
 
             # Link the labels to the old, being wary of branch points (multiple children!)
             for oldSector in lastSectors:
-                if len(oldSector._childSectors) == 1: # Not a branch point
+                childrenNumber = len(oldSector._childSectors)
+                if childrenNumber == 1: # Not a branch point
                     oldSector._childSectors[0].label = oldSector._label
-                else: # Branch Point
-                    print 'potato'
+                elif childrenNumber > 1: # Branch Point
+                    oldSector._childSectors[0]._label = oldSector._label
+                    # Get the maximum label number currently in use
+                    maxLabel = -1
+                    for s in currentSectors:
+                        if s._label > maxLabel: maxLabel = s._label
+                    for i in range(1, childrenNumber):
+                        oldSector._childSectors[i]._label = maxLabel
+                        maxLabel += 1
 
+            self._sectorHistory.append(currentSectors)
 
-        self._sectorHistory = self._sectorHistory.append(currentSectors)
         self._radius -= 1
 
+    def plotSectorHistory(self):
+        labelImage = self.inputImage.copy()
+
+        print self._sectorHistory
 ######## Sectors #########
 
 from utility import *
@@ -153,3 +169,8 @@ class Circle_Sector:
             return True
         elif cond_2a and cond_2b:            return True
         return False
+
+    def __iter__(self):
+        return self
+    def next(self):
+        raise StopIteration

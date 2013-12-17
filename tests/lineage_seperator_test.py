@@ -14,6 +14,7 @@ showImage(testImage)
 circ = lineage_seperator.Circle(testImage, center)
 print 'Max radius: ' , circ._maxRadius
 print 'Min radius: ' , circ._minRadius
-for i in range(1):
-    circ.doStep()
+circ.run()
+circ.plotSectorHistory()
+
 pl.show()
