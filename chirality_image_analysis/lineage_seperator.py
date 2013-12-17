@@ -10,7 +10,7 @@ from image_analysis import *
 
 ######## Main Class ########
 
-eight_con_dist = 2.0
+eight_con_dist = 1.5
 
 class Circle:
     inputImage = None
@@ -93,7 +93,6 @@ class Circle:
             for oldSector in lastSectors:
                 for newSector in currentSectors:
                     # Find overlaps
-                    print 'I get here...'
                     if oldSector.checkOverlap(newSector):
                         print 'There is an overlap!'
                         oldSector._childSectors.append(newSector)
@@ -102,6 +101,7 @@ class Circle:
             # Link the labels to the old, being wary of branch points (multiple children!)
             for oldSector in lastSectors:
                 childrenNumber = len(oldSector._childSectors)
+                print childrenNumber
                 if childrenNumber == 1: # Not a branch point
                     print 'Not a branch point'
                     oldSector._childSectors[0].label = oldSector._label
@@ -135,7 +135,7 @@ class Circle:
 
 from utility import *
 
-padding_length = 2
+padding_length = 2.0
 
 class Circle_Sector:
     """Sectors contain connected pixels."""
@@ -170,16 +170,9 @@ class Circle_Sector:
         specified by padding_length."""
         # ds = r*dtheta
         dtheta = padding_length/self._radius
-
-        cond_1a = (self._maxTheta - otherSector._minTheta) > -dtheta
-        cond_1b = (self._maxTheta - otherSector._maxTheta) < dtheta
-
-        cond_2a = self._minTheta - otherSector._maxTheta < dtheta
-        cond_2b = self._minTheta - otherSector._minTheta > -dtheta
-        if cond_1a and cond_1b:
-            return True
-        elif cond_2a and cond_2b:            return True
-        return False
+        # It is easiest to just compare all theta
+        overlap = np.abs(self._positionData['theta'] - otherSector._positionData['theta']) <= dtheta
+        return np.any(overlap)
 
     def __iter__(self):
         return self
