@@ -10,7 +10,7 @@ from image_analysis import *
 
 ######## Main Class ########
 
-eight_con_dist = 3
+eight_con_dist = 1.5
 
 class Circle:
 
@@ -56,7 +56,7 @@ class Circle:
 
         # Assume each point is separate, then link!
         dataLength = len(poi_data)
-        poi_data['label'] = np.arange(1, 1 + dataLength)
+        poi_data['c_label'] = np.arange(1, 1 + dataLength)
 
          # Find the separation between every point
         pointVec = np.column_stack((poi_data['x'], poi_data['y']))
@@ -64,8 +64,18 @@ class Circle:
         distMat = np.triu(distMat)
 
         # Label connected components
-        i, j = np.where(distMat <= eight_con_dist)
-        poi_data.iloc[i].label = poi_data.iloc[j].label
+        print 'poi_data before:'
+        print poi_data
+        i, j = np.where((distMat <= eight_con_dist) & (distMat > 0))
+        print 'i:' , i
+        print 'j:' , j
+        if len(i) > 0 and len(j) > 0:
+            for r, c in zip(i, j):
+                poi_data.c_label.iloc[r] = poi_data.c_label.iloc[c]
+
+        print
+        print poi_data
+        print
 
         return poi_data
 
@@ -81,7 +91,7 @@ class Circle:
         poi_data = self.getLabeledPointsAtRadius()
 
         # Based on the labels, create sectors
-        groups = poi_data.groupby('label')
+        groups = poi_data.groupby('c_label')
         currentSectors = []
         for label, g in groups:
             # Create a sector
@@ -124,6 +134,16 @@ class Circle:
                     labelImage[sector._xvalues, sector._yvalues] = sector._label
                 else:
                     labelImage[sector._xvalues, sector._yvalues] = i
+        return labelImage
+
+    def getSectorLabelImage(self):
+        """Labels each sector differently so that you can see the sectors."""
+        labelImage = np.zeros(self.inputImage.shape, dtype=np.int)
+        count = 1
+        for i in range(len(self._sectorHistory)):
+            for sector in self._sectorHistory[i]:
+                labelImage[sector._xvalues, sector._yvalues] = count
+                count +=1
         return labelImage
 
 ######## Sectors #########
