@@ -13,16 +13,6 @@ from image_analysis import *
 eight_con_dist = 1.5
 
 class Circle:
-    inputImage = None
-    center = None
-
-    _radius = None
-    _maxRadius = None
-    _minRadius = None
-    _xpoints = None
-    _ypoints = None
-
-    _sectorHistory = None
 
     def __init__(self, inputImage, center):
         self.inputImage = inputImage
@@ -36,6 +26,11 @@ class Circle:
         self._maxRadius = int(np.floor(data.r.max()))
         self._minRadius = int(np.ceil(data.r.min()))
         self._radius = self._maxRadius
+
+        self._xpoints = None
+        self._ypoints = None
+
+        self._sectorHistory = []
 
     def setPointsAtRadius(self):
         self._xpoints , self._ypoints = ski.draw.circle_perimeter(self.center[0], self.center[1], self._radius)
@@ -68,6 +63,7 @@ class Circle:
 
     def run(self):
         while self._radius >= self._minRadius:
+            print 'Radius:' , self._radius
             self.doStep()
 
     def doStep(self):
@@ -84,29 +80,26 @@ class Circle:
             newSector = Circle_Sector(g['x'], g['y'], self._radius, self.center)
             newSector._label = label
             currentSectors.append(newSector)
-
-        if self._sectorHistory is None:
-            self._sectorHistory = currentSectors
-        else:
+        if len(self._sectorHistory) != 0:
             # Set children and parents of each sector
             lastSectors = self._sectorHistory[-1]
+
             for oldSector in lastSectors:
                 for newSector in currentSectors:
                     # Find overlaps
                     if oldSector.checkOverlap(newSector):
-                        print 'There is an overlap!'
                         oldSector._childSectors.append(newSector)
                         newSector._parentSectors.append(oldSector)
 
             # Link the labels to the old, being wary of branch points (multiple children!)
             for oldSector in lastSectors:
                 childrenNumber = len(oldSector._childSectors)
-                print childrenNumber
+                print 'Num children: ' , childrenNumber
                 if childrenNumber == 1: # Not a branch point
-                    print 'Not a branch point'
+                    #print 'Not a branch point'
                     oldSector._childSectors[0].label = oldSector._label
                 elif childrenNumber > 1: # Branch Point
-                    print 'Branch point!'
+                    #print 'Branch point!'
                     oldSector._childSectors[0]._label = oldSector._label
                     # Get the maximum label number currently in use
                     maxLabel = -1
@@ -115,9 +108,7 @@ class Circle:
                     for i in range(1, childrenNumber):
                         oldSector._childSectors[i]._label = maxLabel
                         maxLabel += 1
-
-            self._sectorHistory.append(currentSectors)
-
+        self._sectorHistory.append(currentSectors)
         self._radius -= 1
 
     def getLabelImage(self, debug=False):
@@ -128,7 +119,6 @@ class Circle:
                     labelImage[sector._xvalues, sector._yvalues] = sector._label
                 else:
                     labelImage[sector._xvalues, sector._yvalues] = i
-        print np.max(labelImage)
         return labelImage
 
 ######## Sectors #########
@@ -139,19 +129,6 @@ padding_length = 2.0
 
 class Circle_Sector:
     """Sectors contain connected pixels."""
-    _xvalues = None
-    _yvalues = None
-    _radius = None
-    _center = None
-
-    _positionData = None
-    _label = None
-
-    _maxTheta = None
-    _minTheta = None
-
-    _parentSectors = []
-    _childSectors = []
 
     def __init__(self, xvalues, yvalues, radius, center):
         self._xvalues = xvalues
@@ -165,6 +142,10 @@ class Circle_Sector:
         self._maxTheta = self._positionData.theta.max()
         self._minTheta = self._positionData.theta.min()
 
+        self._label = None
+        self._parentSectors = []
+        self._childSectors = []
+
     def checkOverlap(self, otherSector):
         """ Returns true if the two overlaps intersect (within a given tolerance)
         specified by padding_length."""
@@ -173,8 +154,3 @@ class Circle_Sector:
         # It is easiest to just compare all theta
         overlap = np.abs(self._positionData['theta'] - otherSector._positionData['theta']) <= dtheta
         return np.any(overlap)
-
-    def __iter__(self):
-        return self
-    def next(self):
-        raise StopIteration
