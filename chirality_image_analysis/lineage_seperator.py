@@ -10,7 +10,7 @@ from image_analysis import *
 
 ######## Main Class ########
 
-eight_con_dist = 1.5
+eight_con_dist = 2.0
 
 class Circle:
     inputImage = None
@@ -53,7 +53,7 @@ class Circle:
 
         # Assume each point is separate, then link!
         dataLength = len(poi_data)
-        poi_data['label'] = np.arange(dataLength)
+        poi_data['label'] = np.arange(1, 1 + dataLength)
 
          # Find the separation between every point
         pointVec = np.column_stack((poi_data['x'], poi_data['y']))
@@ -93,7 +93,9 @@ class Circle:
             for oldSector in lastSectors:
                 for newSector in currentSectors:
                     # Find overlaps
+                    print 'I get here...'
                     if oldSector.checkOverlap(newSector):
+                        print 'There is an overlap!'
                         oldSector._childSectors.append(newSector)
                         newSector._parentSectors.append(oldSector)
 
@@ -101,8 +103,10 @@ class Circle:
             for oldSector in lastSectors:
                 childrenNumber = len(oldSector._childSectors)
                 if childrenNumber == 1: # Not a branch point
+                    print 'Not a branch point'
                     oldSector._childSectors[0].label = oldSector._label
                 elif childrenNumber > 1: # Branch Point
+                    print 'Branch point!'
                     oldSector._childSectors[0]._label = oldSector._label
                     # Get the maximum label number currently in use
                     maxLabel = -1
@@ -116,10 +120,17 @@ class Circle:
 
         self._radius -= 1
 
-    def plotSectorHistory(self):
-        labelImage = self.inputImage.copy()
+    def getLabelImage(self, debug=False):
+        labelImage = np.zeros(self.inputImage.shape, dtype=np.int)
+        for i in range(len(self._sectorHistory)):
+            for sector in self._sectorHistory[i]:
+                if not debug:
+                    labelImage[sector._xvalues, sector._yvalues] = sector._label
+                else:
+                    labelImage[sector._xvalues, sector._yvalues] = i
+        print np.max(labelImage)
+        return labelImage
 
-        print self._sectorHistory
 ######## Sectors #########
 
 from utility import *
