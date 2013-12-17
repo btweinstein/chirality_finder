@@ -10,7 +10,7 @@ from image_analysis import *
 
 ######## Main Class ########
 
-eight_con_dist = 1.5
+eight_con_dist = 3
 
 class Circle:
 
@@ -33,7 +33,15 @@ class Circle:
         self._sectorHistory = []
 
     def setPointsAtRadius(self):
-        self._xpoints , self._ypoints = ski.draw.circle_perimeter(self.center[0], self.center[1], self._radius)
+        xpoints, ypoints = ski.draw.circle_perimeter(self.center[0], self.center[1], self._radius)
+        # Remove the points that fall outside the image
+        coords = np.column_stack((xpoints, ypoints))
+        coordArray = pd.DataFrame(data=coords, columns=['x', 'y'])
+        coordArray = coordArray[(coordArray['x'] >= 0) & (coordArray['y'] >= 0)]
+        coordArray = coordArray[(coordArray['x'] < self.inputImage.shape[0]) &  \
+                                (coordArray['y'] < self.inputImage.shape[1])]
+        self._xpoints = coordArray['x'].values
+        self._ypoints = coordArray['y'].values
 
     def getLabeledPointsAtRadius(self):
         """Gets all points at the radius and their position data. Returns connected component labels
@@ -94,12 +102,9 @@ class Circle:
             # Link the labels to the old, being wary of branch points (multiple children!)
             for oldSector in lastSectors:
                 childrenNumber = len(oldSector._childSectors)
-                print 'Num children: ' , childrenNumber
                 if childrenNumber == 1: # Not a branch point
-                    #print 'Not a branch point'
                     oldSector._childSectors[0].label = oldSector._label
                 elif childrenNumber > 1: # Branch Point
-                    #print 'Branch point!'
                     oldSector._childSectors[0]._label = oldSector._label
                     # Get the maximum label number currently in use
                     maxLabel = -1
@@ -125,7 +130,7 @@ class Circle:
 
 from utility import *
 
-padding_length = 2.0
+padding_length = 3.0
 
 class Circle_Sector:
     """Sectors contain connected pixels."""
