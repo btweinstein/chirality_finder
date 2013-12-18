@@ -105,7 +105,7 @@ class Circle:
             for oldSector in lastSectors:
                 childrenNumber = len(oldSector._childSectors)
                 if childrenNumber == 1: # Not a branch point
-                    oldSector._childSectors[0].label = oldSector._label
+                    oldSector._childSectors[0]._label = oldSector._label
                 elif childrenNumber > 1: # Branch Point
                     print 'branch point!'
                     oldSector._childSectors[0]._label = oldSector._label
@@ -143,7 +143,7 @@ class Circle:
 
 from utility import *
 
-padding_length = 2.00
+padding_length = 1.0
 
 class Circle_Sector:
     """Sectors contain connected pixels."""
