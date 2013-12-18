@@ -17,6 +17,7 @@ print 'Max radius: ' , circ._maxRadius
 print 'Min radius: ' , circ._minRadius
 circ.run()
 labelImage = circ.getLabelImage()
+print np.max(labelImage)
 
 showImage(ski.color.label2rgb(labelImage - 1))
 pl.show()

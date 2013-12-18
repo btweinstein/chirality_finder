@@ -33,6 +33,8 @@ class Circle:
 
         self._sectorHistory = []
 
+        self._maxLabel = 0
+
     def setPointsAtRadius(self):
         xpoints, ypoints = ski.draw.circle_perimeter(self.center[0], self.center[1], self._radius)
         # Remove the points that fall outside the image
@@ -45,9 +47,8 @@ class Circle:
         self._ypoints = coordArray['y'].values
 
     def getLabeledPointsAtRadius(self):
-        #TODO: Fix my connected component algorithm! Hierarchical clustering may solve this problem for me though...
         """Gets all points at the radius and their position data. Returns connected component labels
-        (8 neighbors) too."""
+        (8 neighbors) too. Returns labels greater than the current maximum label."""
         index = np.where(self.inputImage[self._xpoints, self._ypoints])
 
         xPOI = self._xpoints[index]
@@ -59,6 +60,11 @@ class Circle:
         # Label connected components
         db = sklearn.cluster.DBSCAN(eps=eight_con_dist, min_samples=1).fit(poi_coords)
         poi_data['_clabel'] = db.labels_
+        # Drop points that were uncertain about what cluster they belonged to
+        poi_data = poi_data[poi_data['_clabel'] != -1]
+        # db Labels go from 0 up. We want labels to go from 1 to infinity. Also
+        # we want new labels to be not a previously used one!
+        poi_data['_clabel'] += 1 + self._maxLabel
 
         return poi_data
 
@@ -76,10 +82,10 @@ class Circle:
         # Based on the labels, create sectors
         groups = poi_data.groupby('_clabel')
         currentSectors = []
-        for label, g in groups:
+        for clabel, g in groups:
             # Create a sector
             newSector = Circle_Sector(g['x'], g['y'], self._radius, self.center)
-            newSector._clabel = label
+            newSector._clabel = clabel
             currentSectors.append(newSector)
         if len(self._sectorHistory) != 0:
             # Set children and parents of each sector
@@ -93,20 +99,17 @@ class Circle:
                         newSector._parentSectors.append(oldSector)
 
             # Link the labels to the old, being wary of branch points (multiple children!)
+            # If we have a branch, we just define a new segment.
             for oldSector in lastSectors:
                 childrenNumber = len(oldSector._childSectors)
                 if childrenNumber == 1: # Not a branch point
                     oldSector._childSectors[0]._clabel = oldSector._clabel
-                elif childrenNumber > 1: # Branch Point
+                elif childrenNumber > 1: # Branch Point: just redefine everything
                     print 'branch point!'
-                    oldSector._childSectors[0]._clabel = oldSector._clabel
-                    # Get the maximum label number currently in use
-                    maxLabel = -1
-                    for s in currentSectors:
-                        if s._clabel > maxLabel: maxLabel = s._clabel
-                    for i in range(1, childrenNumber):
-                        oldSector._childSectors[i]._clabel = maxLabel
-                        maxLabel += 1
+                    for i in range(childrenNumber):
+                        oldSector._childSectors[i]._clabel = self._maxLabel + 1
+                        self._maxLabel += 1
+        # Check what the maximum label is
         self._sectorHistory.append(currentSectors)
         self._radius -= 1
 
