@@ -6,11 +6,15 @@ import scipy as sp
 import scipy.spatial
 
 import skimage.draw
+import sklearn
+import sklearn.cluster
+
 from image_analysis import *
+
 
 ######## Main Class ########
 
-eight_con_dist = 1.50
+eight_con_dist = 1.5
 
 class Circle:
 
@@ -44,6 +48,7 @@ class Circle:
         self._ypoints = coordArray['y'].values
 
     def getLabeledPointsAtRadius(self):
+        #TODO: Fix my connected component algorithm! Hierarchical clustering may solve this problem for me though...
         """Gets all points at the radius and their position data. Returns connected component labels
         (8 neighbors) too."""
         index = np.where(self.inputImage[self._xpoints, self._ypoints])
@@ -64,7 +69,10 @@ class Circle:
         distMat = np.triu(distMat)
 
         # Label connected components
+        sklearn.cluster.dbscan()
         i, j = np.where((distMat <= eight_con_dist) & (distMat > 0))
+        print 'i:' , i
+        print 'j:' , j
         if len(i) > 0 and len(j) > 0:
             for r, c in zip(i, j):
                 poi_data._clabel.iloc[r] = poi_data._clabel.iloc[c]
