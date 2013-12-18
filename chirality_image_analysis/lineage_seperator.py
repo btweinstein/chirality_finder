@@ -10,7 +10,7 @@ from image_analysis import *
 
 ######## Main Class ########
 
-eight_con_dist = 1.5
+eight_con_dist = 1.50
 
 class Circle:
 
@@ -64,18 +64,10 @@ class Circle:
         distMat = np.triu(distMat)
 
         # Label connected components
-        print 'poi_data before:'
-        print poi_data
         i, j = np.where((distMat <= eight_con_dist) & (distMat > 0))
-        print 'i:' , i
-        print 'j:' , j
         if len(i) > 0 and len(j) > 0:
             for r, c in zip(i, j):
                 poi_data.c_label.iloc[r] = poi_data.c_label.iloc[c]
-
-        print
-        print poi_data
-        print
 
         return poi_data
 
@@ -102,9 +94,9 @@ class Circle:
             # Set children and parents of each sector
             lastSectors = self._sectorHistory[-1]
 
+            # Find overlapping regions
             for oldSector in lastSectors:
                 for newSector in currentSectors:
-                    # Find overlaps
                     if oldSector.checkOverlap(newSector):
                         oldSector._childSectors.append(newSector)
                         newSector._parentSectors.append(oldSector)
@@ -115,6 +107,7 @@ class Circle:
                 if childrenNumber == 1: # Not a branch point
                     oldSector._childSectors[0].label = oldSector._label
                 elif childrenNumber > 1: # Branch Point
+                    print 'branch point!'
                     oldSector._childSectors[0]._label = oldSector._label
                     # Get the maximum label number currently in use
                     maxLabel = -1
@@ -150,7 +143,7 @@ class Circle:
 
 from utility import *
 
-padding_length = 3.0
+padding_length = 2.00
 
 class Circle_Sector:
     """Sectors contain connected pixels."""
@@ -177,5 +170,10 @@ class Circle_Sector:
         # ds = r*dtheta
         dtheta = padding_length/self._radius
         # It is easiest to just compare all theta
-        overlap = np.abs(self._positionData['theta'] - otherSector._positionData['theta']) <= dtheta
+        thetaSelf = self._positionData['theta']
+        newTheta = otherSector._positionData['theta']
+
+        origMesh, newMesh = np.meshgrid(thetaSelf, newTheta)
+        overlap = np.abs(origMesh - newMesh) <= dtheta
+
         return np.any(overlap)

@@ -16,7 +16,7 @@ circ = lineage_seperator.Circle(testImage, center)
 print 'Max radius: ' , circ._maxRadius
 print 'Min radius: ' , circ._minRadius
 circ.run()
-labelImage = circ.getLabelImage()
+labelImage = circ.getSectorLabelImage()
 
 showImage(ski.color.label2rgb(labelImage - 1))
 pl.show()
