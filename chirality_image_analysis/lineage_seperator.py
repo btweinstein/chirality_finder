@@ -2,9 +2,6 @@ __author__ = 'bryan'
 """Responsible for separating lineages in a binary image
 by utilizing the geometry of the range expansion."""
 
-import scipy as sp
-import scipy.spatial
-
 import skimage.draw
 import sklearn
 import sklearn.cluster
@@ -59,23 +56,9 @@ class Circle:
         poi_coords = np.column_stack((xPOI, yPOI))
         poi_data = getPositionData(poi_coords, self.center)
 
-        # Assume each point is separate, then link!
-        dataLength = len(poi_data)
-        poi_data['_clabel'] = np.arange(1, 1 + dataLength)
-
-         # Find the separation between every point
-        pointVec = np.column_stack((poi_data['x'], poi_data['y']))
-        distMat = sp.spatial.distance.cdist(pointVec, pointVec)
-        distMat = np.triu(distMat)
-
         # Label connected components
-        sklearn.cluster.dbscan()
-        i, j = np.where((distMat <= eight_con_dist) & (distMat > 0))
-        print 'i:' , i
-        print 'j:' , j
-        if len(i) > 0 and len(j) > 0:
-            for r, c in zip(i, j):
-                poi_data._clabel.iloc[r] = poi_data._clabel.iloc[c]
+        db = sklearn.cluster.DBSCAN(eps=eight_con_dist, min_samples=1).fit(poi_coords)
+        poi_data['_clabel'] = db.labels_
 
         return poi_data
 
