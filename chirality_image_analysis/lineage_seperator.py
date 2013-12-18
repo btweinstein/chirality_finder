@@ -56,7 +56,7 @@ class Circle:
 
         # Assume each point is separate, then link!
         dataLength = len(poi_data)
-        poi_data['c_label'] = np.arange(1, 1 + dataLength)
+        poi_data['_clabel'] = np.arange(1, 1 + dataLength)
 
          # Find the separation between every point
         pointVec = np.column_stack((poi_data['x'], poi_data['y']))
@@ -67,7 +67,7 @@ class Circle:
         i, j = np.where((distMat <= eight_con_dist) & (distMat > 0))
         if len(i) > 0 and len(j) > 0:
             for r, c in zip(i, j):
-                poi_data.c_label.iloc[r] = poi_data.c_label.iloc[c]
+                poi_data._clabel.iloc[r] = poi_data._clabel.iloc[c]
 
         return poi_data
 
@@ -83,12 +83,12 @@ class Circle:
         poi_data = self.getLabeledPointsAtRadius()
 
         # Based on the labels, create sectors
-        groups = poi_data.groupby('c_label')
+        groups = poi_data.groupby('_clabel')
         currentSectors = []
         for label, g in groups:
             # Create a sector
             newSector = Circle_Sector(g['x'], g['y'], self._radius, self.center)
-            newSector._label = label
+            newSector._clabel = label
             currentSectors.append(newSector)
         if len(self._sectorHistory) != 0:
             # Set children and parents of each sector
@@ -105,16 +105,16 @@ class Circle:
             for oldSector in lastSectors:
                 childrenNumber = len(oldSector._childSectors)
                 if childrenNumber == 1: # Not a branch point
-                    oldSector._childSectors[0]._label = oldSector._label
+                    oldSector._childSectors[0]._clabel = oldSector._clabel
                 elif childrenNumber > 1: # Branch Point
                     print 'branch point!'
-                    oldSector._childSectors[0]._label = oldSector._label
+                    oldSector._childSectors[0]._clabel = oldSector._clabel
                     # Get the maximum label number currently in use
                     maxLabel = -1
                     for s in currentSectors:
-                        if s._label > maxLabel: maxLabel = s._label
+                        if s._clabel > maxLabel: maxLabel = s._clabel
                     for i in range(1, childrenNumber):
-                        oldSector._childSectors[i]._label = maxLabel
+                        oldSector._childSectors[i]._clabel = maxLabel
                         maxLabel += 1
         self._sectorHistory.append(currentSectors)
         self._radius -= 1
@@ -124,7 +124,7 @@ class Circle:
         for i in range(len(self._sectorHistory)):
             for sector in self._sectorHistory[i]:
                 if not debug:
-                    labelImage[sector._xvalues, sector._yvalues] = sector._label
+                    labelImage[sector._xvalues, sector._yvalues] = sector._clabel
                 else:
                     labelImage[sector._xvalues, sector._yvalues] = i
         return labelImage
@@ -160,7 +160,7 @@ class Circle_Sector:
         self._maxTheta = self._positionData.theta.max()
         self._minTheta = self._positionData.theta.min()
 
-        self._label = None
+        self._clabel = None
         self._parentSectors = []
         self._childSectors = []
 
