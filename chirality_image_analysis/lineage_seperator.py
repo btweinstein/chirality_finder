@@ -9,8 +9,7 @@ from image_analysis import *
 
 ######## Main Class ########
 
-eight_con_dist = 2.0
-radiusWidth = 2
+eight_con_dist = 1.5
 
 class Circle:
 
@@ -35,6 +34,7 @@ class Circle:
         self._maxLabel = 0
 
     def setPointsAtRadius(self):
+
         xpoints, ypoints = ski.draw.circle_perimeter(self.center[0], self.center[1], self._radius)
         # Remove the points that fall outside the image
         coords = np.column_stack((xpoints, ypoints))
