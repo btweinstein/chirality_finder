@@ -104,12 +104,10 @@ class Circle:
                 childrenNumber = len(oldSector._childSectors)
                 if childrenNumber == 1: # Not a branch point
                     oldSector._childSectors[0]._clabel = oldSector._clabel
-                elif childrenNumber > 1: # Branch Point: just redefine everything
-                    print 'branch point!'
-                    for i in range(childrenNumber):
-                        oldSector._childSectors[i]._clabel = self._maxLabel + 1
-                        self._maxLabel += 1
         # Check what the maximum label is
+        for s in currentSectors:
+            if self._maxLabel < s._clabel:
+                self._maxLabel = s._clabel
         self._sectorHistory.append(currentSectors)
         self._radius -= 1
 
