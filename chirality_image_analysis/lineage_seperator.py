@@ -55,7 +55,7 @@ class Circle:
         # Create a new image that we use connected components on
         cImage = np.zeros(self.inputImage.shape, dtype=np.int)
         cImage[xPOI, yPOI] = 1
-        labelImage = skimage.morphology.label(cImage) + 1
+        labelImage = skimage.morphology.label(cImage, neighbors=8) + 1
 
         poi_coords = np.column_stack((xPOI, yPOI))
         poi_data = getPositionData(poi_coords, self.center)
