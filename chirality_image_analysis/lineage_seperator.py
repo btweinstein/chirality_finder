@@ -4,6 +4,7 @@ by utilizing the geometry of the range expansion."""
 
 import skimage.draw
 import skimage.morphology
+import skimage.io
 from image_analysis import *
 
 
@@ -81,7 +82,7 @@ class Circle:
         currentSectors = []
         for clabel, g in groups:
             # Create a sector
-            newSector = Circle_Sector(g['x'], g['y'], self._radius, self.center)
+            newSector = Circle_Sector(g['x'], g['y'], self._radius, self.center, self.inputImage)
             newSector._clabel = clabel
             currentSectors.append(newSector)
         if len(self._sectorHistory) != 0:
@@ -137,11 +138,12 @@ padding_length = 1.0
 class Circle_Sector:
     """Sectors contain connected pixels."""
 
-    def __init__(self, xvalues, yvalues, radius, center):
+    def __init__(self, xvalues, yvalues, radius, center, inputImage):
         self._xvalues = xvalues
         self._yvalues = yvalues
         self._radius = radius
         self._center = center
+        self._inputImage = inputImage
 
         allPoints = np.column_stack((self._xvalues, self._yvalues))
         self._positionData = getPositionData(allPoints, self._center)
@@ -154,15 +156,13 @@ class Circle_Sector:
         self._childSectors = []
 
     def checkOverlap(self, otherSector):
-        """ Returns true if the two overlaps intersect (within a given tolerance)
-        specified by padding_length."""
+        """ Returns true if the two overlaps intersect as defined by
+        8-connectivity"""
         # ds = r*dtheta
-        dtheta = padding_length/self._radius
-        # It is easiest to just compare all theta
-        thetaSelf = self._positionData['theta']
-        newTheta = otherSector._positionData['theta']
-
-        origMesh, newMesh = np.meshgrid(thetaSelf, newTheta)
-        overlap = np.abs(origMesh - newMesh) <= dtheta
-
-        return np.any(overlap)
+        testImage = np.zeros(self._inputImage.shape, dtype=np.int)
+        testImage[self._xvalues, self._yvalues] = 1
+        testImage[otherSector._xvalues, otherSector._yvalues] = 1
+        labeledImage = ski.morphology.label(testImage, neighbors=8)
+        print np.max(labeledImage)
+        print np.min(labeledImage)
+        return np.max(labeledImage) == 1
