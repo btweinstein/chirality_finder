@@ -10,7 +10,7 @@ from chirality_image_analysis.utility import  *
 
 testImage = ski.io.imread('Example.tif')
 testImage = (testImage > 0)
-center = np.array([116, 101])
+center = np.array([118, 101])
 showImage(testImage)
 circ = lineage_seperator.Circle(testImage, center)
 print 'Max radius: ' , circ._maxRadius

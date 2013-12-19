@@ -67,7 +67,7 @@ class Circle:
         return poi_data
 
     def run(self):
-        while self._radius >= self._minRadius:
+        while self._radius >= self._minRadius and self._radius <= self._maxRadius:
             print 'Radius:' , self._radius
             self.doStep()
 
@@ -96,14 +96,31 @@ class Circle:
                         oldSector._childSectors.append(newSector)
                         newSector._parentSectors.append(oldSector)
 
-            # Link the labels to the old, being wary of branch points (multiple children!)
-            # If we have a branch, we just define a new segment.
+            # Link if not a branch point
             for oldSector in lastSectors:
                 childrenNumber = len(oldSector._childSectors)
                 if childrenNumber == 1: # Not a branch point
                     oldSector._childSectors[0]._clabel = oldSector._clabel
+            # If you have multiple parents, likely a result of things not being connected
+            # when they should be. Choose the piece with more labels in the image currently.
+            for newSector in currentSectors:
+                numParents = len(newSector._parentSectors)
+                if numParents >= 2:
+                    print 'Multiple parents! Linking...'
+                    labelImage = self.getLabelImage()
+                    maxNumPoints = -1
+                    maxLabel = None
+                    for psector in newSector._parentSectors:
+                        # Get number of points with each label
+                        numMembers = np.sum(psector._clabel == labelImage)
+                        if numMembers > maxNumPoints:
+                            maxNumPoints = numMembers
+                            maxLabel = psector._clabel
+                    newSector._clabel = maxLabel
+                    for psector in newSector._parentSectors:
+                        psector._clabel = maxLabel
 
-        # Check what the maximum label is
+        # Check what the maximum label at the current radius is
         for s in currentSectors:
             if self._maxLabel < s._clabel:
                 self._maxLabel = s._clabel
