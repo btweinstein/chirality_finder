@@ -17,7 +17,11 @@ print 'Max radius: ' , circ._maxRadius
 print 'Min radius: ' , circ._minRadius
 circ.run()
 labelImage = circ.getLabelImage()
-print np.max(labelImage)
+
+# Let's make sure that the labels are correct.
+#props = skimage.measure.regionprops(labelImage)
+#for p in props:
+#    showImage(labelImage == p.label)
 
 showImage(ski.color.label2rgb(labelImage - 1))
 pl.show()

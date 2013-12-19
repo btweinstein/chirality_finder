@@ -2,18 +2,16 @@ __author__ = 'bryan'
 """Responsible for separating lineages in a binary image
 by utilizing the geometry of the range expansion."""
 
+import skimage as ski
 import skimage.draw
 import skimage.morphology
-from image_analysis import *
-
+from utility import *
 
 ######## Main Class ########
 
-eight_con_dist = 1.5
-
 class Circle:
-
     def __init__(self, inputImage, center):
+
         self.inputImage = inputImage
         self.center = center
 
@@ -101,8 +99,8 @@ class Circle:
                 childrenNumber = len(oldSector._childSectors)
                 if childrenNumber == 1: # Not a branch point
                     oldSector._childSectors[0]._clabel = oldSector._clabel
-            # If you have multiple parents, likely a result of things not being connected
-            # when they should be. Choose the piece with more labels in the image currently.
+            #If you have multiple parents, likely a result of things not being connected
+            #when they should be. Choose the piece with more labels in the image currently.
             for newSector in currentSectors:
                 numParents = len(newSector._parentSectors)
                 if numParents >= 2:
@@ -149,8 +147,6 @@ class Circle:
 
 ######## Sectors #########
 
-from utility import *
-
 padding_length = 1.0
 
 class Circle_Sector:
@@ -176,8 +172,9 @@ class Circle_Sector:
         """ Returns true if the two overlaps intersect (within a given tolerance)
         specified by padding_length."""
         # ds = r*dtheta
-        dtheta = padding_length/self._radius
+        dtheta = padding_length/float(self._radius)
         # It is easiest to just compare all theta
+
         thetaSelf = self._positionData['theta']
         newTheta = otherSector._positionData['theta']
 
