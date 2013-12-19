@@ -3,9 +3,7 @@ __author__ = 'bryan'
 by utilizing the geometry of the range expansion."""
 
 import skimage.draw
-import sklearn
-import sklearn.cluster
-
+import skimage.morphology
 from image_analysis import *
 
 
@@ -54,17 +52,16 @@ class Circle:
         xPOI = self._xpoints[index]
         yPOI = self._ypoints[index]
 
+        # Create a new image that we use connected components on
+        cImage = np.zeros(self.inputImage.shape, dtype=np.int)
+        cImage[xPOI, yPOI] = 1
+        labelImage = skimage.morphology.label(cImage) + 1
+
         poi_coords = np.column_stack((xPOI, yPOI))
         poi_data = getPositionData(poi_coords, self.center)
-
         # Label connected components
-        db = sklearn.cluster.DBSCAN(eps=eight_con_dist, min_samples=1).fit(poi_coords)
-        poi_data['_clabel'] = db.labels_
-        # Drop points that were uncertain about what cluster they belonged to
-        poi_data = poi_data[poi_data['_clabel'] != -1]
-        # db Labels go from 0 up. We want labels to go from 1 to infinity. Also
-        # we want new labels to be not a previously used one!
-        poi_data['_clabel'] += 1 + self._maxLabel
+        poi_data['_clabel'] = labelImage[poi_data['x'], poi_data['y']]
+        poi_data['_clabel'] += self._maxLabel
 
         return poi_data
 
