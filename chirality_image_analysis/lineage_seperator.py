@@ -9,7 +9,8 @@ from image_analysis import *
 
 ######## Main Class ########
 
-eight_con_dist = 1.5
+eight_con_dist = 2.0
+radiusWidth = 2
 
 class Circle:
 
@@ -88,7 +89,7 @@ class Circle:
             # Set children and parents of each sector
             lastSectors = self._sectorHistory[-1]
 
-            # Find overlapping regions
+            # Find overlapping regions and link them
             for oldSector in lastSectors:
                 for newSector in currentSectors:
                     if oldSector.checkOverlap(newSector):
@@ -101,6 +102,7 @@ class Circle:
                 childrenNumber = len(oldSector._childSectors)
                 if childrenNumber == 1: # Not a branch point
                     oldSector._childSectors[0]._clabel = oldSector._clabel
+
         # Check what the maximum label is
         for s in currentSectors:
             if self._maxLabel < s._clabel:
@@ -166,3 +168,14 @@ class Circle_Sector:
         overlap = np.abs(origMesh - newMesh) <= dtheta
 
         return np.any(overlap)
+
+    def mergeSectors(self, otherSector):
+        # Just create a new sector at the current radius with points
+        # combined.
+
+        newXValues = np.hstack((self._xvalues, otherSector._xvalues))
+        newYValues = np.hstack((self._yvalues, otherSector._yvalues))
+        newRadius = self._radius
+        newCenter = self._center
+
+        return Circle_Sector(newXValues, newYValues, newRadius, newCenter)
