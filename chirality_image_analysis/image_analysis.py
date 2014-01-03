@@ -6,7 +6,6 @@ Created on Dec 14, 2013
 
 # Package imports
 from utility import *
-import lineage_seperator
 # External library imports
 import skimage as ski
 import skimage.color
@@ -71,6 +70,56 @@ def filterSectors(labels, center, minLength=250, showPictures=True):
     
     return filteredLabels
 
+def getBinaryEdges(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=False):
+    """Finds the edges in an image by looking at the first
+    fluorescence image (the first channel).
+
+    Returns a labeled image with regions filed down to
+    approximately a single pixel."""
+
+    img = ski.io.imread(path)
+    if showPictures:
+        showImage(img)
+    fluor1 = img[:, :, 0]
+    #fluor2 = img[:, :, 1]
+    brightfield = img[:, :, 2]
+
+    ### Use SimpleCV to find circle for now ###
+    print 'Finding the center...'
+    (center, radius) = findBrightfieldCircle(brightfield, showPictures=showPictures)
+
+    # Filter, clean things up
+    print 'Cleaning up image with filters...'
+    filtered = ski.filter.rank.median(fluor1, ski.morphology.disk(2))
+    if showPictures: showImage(filtered)
+
+    # Find sectors
+    print 'Finding edges...'
+    edges = ski.filter.sobel(filtered)
+    if showPictures: showImage(edges)
+
+    # Cut out center
+    print 'Cutting out center...'
+    (rr, cc) = ski.draw.circle(center[0], center[1], homelandCutFactor*radius)
+    edges[rr, cc] = 0
+    # Cut out edge as we get artifacts there. Note that we could fix this by
+    # using some sort of bandpass filter, but python is being a pain so we won't
+    # do that right now
+
+    (rr, cc) = ski.draw.circle(center[0], center[1], radius*edgeCutFactor)
+    mask = np.zeros(np.shape(edges))
+    mask[rr, cc] = 1
+
+    edges = np.multiply(mask, edges)
+
+    # Binarize
+    binaryValue = ski.filter.threshold_otsu(edges)
+    binaryEdges = edges > binaryValue
+
+    if showPictures: showImage(binaryEdges)
+
+    return binaryEdges
+
 def findSectors(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=False):
     """Finds the sectors in an image by looking at the first
     fluorescence image (the first channel).
@@ -122,10 +171,6 @@ def findSectors(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=Fa
     binary = edges > binaryValue
 
     # Now seperate into distinct lineages using my circular seperator program.
-    print 'Separating lineages...'
-    lineage_seperator.padding_angle= 0.01
-    circ = lineage_seperator.Circle(binary, center)
-    circ.run()
     binaryLabels = circ.getLabelImage()
 
     if showPictures: showImage(binaryLabels)
