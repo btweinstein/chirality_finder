@@ -8,7 +8,8 @@ import skimage.morphology
 from utility import *
 
 ######## Main Class ########
-
+#TODO: Try using multiple radii at once, but don't sweep so only the last radius matters
+# i.e. chunk by three radii at once.
 class Circle:
     def __init__(self, inputImage, center):
 

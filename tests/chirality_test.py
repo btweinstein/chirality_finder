@@ -2,7 +2,7 @@ __author__ = 'bryan'
 
 import pylab as pl
 
-from example_data import *
+from chirality_data_analysis.example_data import *
 from chirality_image_analysis import image_analysis as chi
 
 

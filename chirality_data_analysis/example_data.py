@@ -1,6 +1,6 @@
 __author__ = 'bryan'
 
-from organize_data import *
+from chirality_data_analysis.organize_data import *
 
 imageData = getExperimentMetadata()
 

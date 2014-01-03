@@ -3,7 +3,7 @@ __author__ = 'bryan'
 import skimage as ski
 import skimage.io
 
-from example_data import *
+from chirality_data_analysis.example_data import *
 from chirality_image_analysis import image_analysis as chi
 from chirality_image_analysis import utility as ut
 
