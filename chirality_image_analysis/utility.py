@@ -29,8 +29,9 @@ def getScale(imagePath):
 
 
 def showImage(image):
-    pl.figure()
+    fig = pl.figure()
     skimage.io.imshow(image, interpolation='None')
+    return fig
 
 def loopTheta(theta):
     if theta < -np.pi:
