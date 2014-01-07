@@ -1,8 +1,6 @@
 __author__ = 'bryan'
 
 import matplotlib.pyplot as plt
-import matplotlib
-matplotlib.use('Qt4Agg')
 import matplotlib.widgets as w
 import skimage as ski
 import skimage.io
@@ -27,17 +25,20 @@ class LassoTool:
         self.label_fig_on = False
         self.labelFig = None
 
+        plt.show()
+
     def key_press(self, event):
         if event.key == 'a':
             self.lasso_tool_on = not self.lasso_tool_on
             print 'Lasso Tool: ' , self.lasso_tool_on
             if self.lasso_tool_on:
-                self.lasso = w.LassoSelector(self.ax, self.selector_callback, useblit=False)
+                self.lasso = w.LassoSelector(self.ax, self.selector_callback, useblit=True)
+                plt.draw()
             else:
                 self.lasso.disconnect_events()
                 self.lasso = None
+                plt.draw()
         elif event.key == 'z':
-            print 'boomboom'
             self.label_fig_on = not self.label_fig_on
             print 'Label Tool: ' , self.label_fig_on
             if self.label_fig_on:
@@ -49,11 +50,10 @@ class LassoTool:
         self.labelFig = plt.figure()
         labels = ski.morphology.label(self.image) - 1
         ski.io.imshow(ski.color.label2rgb(labels))
-        plt.show()
+        plt.show(block=False)
 
     def close_label_image(self):
         plt.close(self.labelFig)
-        plt.show()
 
     def selector_callback(self, verts):
         yindices = np.array([f[0] for f in verts])
