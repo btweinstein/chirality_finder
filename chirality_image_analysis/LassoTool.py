@@ -15,51 +15,65 @@ class LassoTool:
 
     def __init__(self, image):
         self.image = image
+        self.prevImage = self.image.copy()
         self.fig = showImage(self.image)
         self.ax = self.fig.gca()
+
         self.key_press_id = self.fig.canvas.mpl_connect('key_press_event', self.key_press)
 
-        self.lasso_tool_on = False
         self.lasso = None
-
-        self.label_fig_on = False
+        self.cutter = None
         self.labelFig = None
 
         plt.show()
 
     def key_press(self, event):
-        if event.key == 'a':
-            self.lasso_tool_on = not self.lasso_tool_on
-            print 'Lasso Tool: ' , self.lasso_tool_on
-            if self.lasso_tool_on:
-                self.lasso = w.LassoSelector(self.ax, self.selector_callback, useblit=True)
-                plt.draw()
-            else:
-                self.lasso.disconnect_events()
-                self.lasso = None
-                plt.draw()
-        elif event.key == 'z':
-            self.label_fig_on = not self.label_fig_on
-            print 'Label Tool: ' , self.label_fig_on
-            if self.label_fig_on:
-                self.show_label_image()
-            else:
-                self.close_label_image()
+        if event.key == 'a': # Lasso Tool
+            print 'Lasso Tool: On'
+            self.lasso = w.LassoSelector(self.ax, self.lasso_callback, useblit=True)
+            plt.draw()
+        if event.key =='t': # Cut Tool
+            print 'Cut Tool: On'
+            self.cutter = w.LassoSelector(self.ax, self.cut_callback, useblit=True)
+            plt.draw()
+        if event.key == 'z': # Label Tool
+            print 'Label Tool: Creating Plot'
+            self.show_label_image()
+        if event.key =='u': # Undo
+            print 'Undoing last lasso...'
+            self.undo_last_lasso()
+
+    def undo_last_lasso(self):
+        self.image = self.prevImage.copy()
+        ski.io.imshow(self.image)
+        plt.draw()
 
     def show_label_image(self):
         self.labelFig = plt.figure()
-        labels = ski.morphology.label(self.image) - 1
+        labels = ski.morphology.label(self.image, neighbors=4) - 1
         ski.io.imshow(ski.color.label2rgb(labels))
         plt.show(block=False)
 
-    def close_label_image(self):
-        plt.close(self.labelFig)
+    def cut_callback(self, verts):
+        xindices = np.array([f[0] for f in verts], dtype=np.int)
+        yindices = np.array([f[1] for f in verts], dtype=np.int)
 
-    def selector_callback(self, verts):
+        self.prevImage = self.image.copy()
+        self.image[yindices, xindices] = False
+        ski.io.imshow(self.image)
+
+        self.cutter.disconnect_events()
+        self.cutter = None
+        plt.draw()
+
+    def lasso_callback(self, verts):
         yindices = np.array([f[0] for f in verts])
         xindices = np.array([f[1] for f in verts])
         rr, cc = ski.draw.polygon(xindices, yindices)
-
+        self.prevImage = self.image.copy()
         self.image[rr, cc] = False
         ski.io.imshow(self.image)
+
+        self.lasso.disconnect_events()
+        self.lasso = None
         plt.draw()
