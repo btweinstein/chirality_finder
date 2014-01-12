@@ -9,7 +9,7 @@ import skimage.morphology
 import skimage.color
 from chirality_image_analysis.utility import *
 
-class LassoTool:
+class InteractiveSelector:
     """Choose regions by hand that should be black
     in a binary image."""
 
@@ -50,8 +50,8 @@ class LassoTool:
 
     def show_label_image(self):
         self.labelFig = plt.figure()
-        labels = ski.morphology.label(self.image, neighbors=4) - 1
-        ski.io.imshow(ski.color.label2rgb(labels))
+        labels = ski.morphology.label(self.image, neighbors=4, background=False) + 1
+        ski.io.imshow(ski.color.label2rgb(labels, bg_label=0))
         plt.show(block=False)
 
     def cut_callback(self, verts):

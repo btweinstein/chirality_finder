@@ -6,6 +6,7 @@ Created on Dec 14, 2013
 
 # Package imports
 from utility import *
+import InteractiveSelector
 # External library imports
 import skimage as ski
 import skimage.color
@@ -15,6 +16,7 @@ import skimage.filter
 import skimage.morphology
 import skimage.draw
 import SimpleCV as cv
+
 
 def findBrightfieldCircle(brightfield, showPictures=False):
     """Finds the circle (boundary) in a brightfield numpy image.
@@ -42,7 +44,7 @@ def filterSectors(labels, center, minLength=250, showPictures=True):
     enough."""
     
     if showPictures:
-        labelImage = ski.color.label2rgb(labels - 1)
+        labelImage = ski.color.label2rgb(labels, bg_label=0)
         showImage(labelImage)
     
     filteredLabels = labels * 0
@@ -66,11 +68,11 @@ def filterSectors(labels, center, minLength=250, showPictures=True):
     # Let's assume this does a good enough filtering job for now.
     # Now figure out the chirality!
     
-    if showPictures: showImage(ski.color.label2rgb(labels - 1))
+    if showPictures: showImage(ski.color.label2rgb(labels, bg_label=0))
     
     return filteredLabels
 
-def getBinaryEdges(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=False):
+def getBinaryData(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=False):
     """Finds the edges in an image by looking at the first
     fluorescence image (the first channel).
 
@@ -118,7 +120,7 @@ def getBinaryEdges(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures
 
     if showPictures: showImage(binaryEdges)
 
-    return binaryEdges
+    return binaryEdges, center, radius
 
 def findSectors(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=False):
     """Finds the sectors in an image by looking at the first
@@ -127,60 +129,25 @@ def findSectors(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=Fa
     Returns a labeled image with regions filed down to
     approximately a single pixel."""
 
-    img = ski.io.imread(path)
-    if showPictures:
-        showImage(img)
-    fluor1 = img[:, :, 0]
-    #fluor2 = img[:, :, 1]
-    brightfield = img[:, :, 2]
+    binaryEdges, center, radius = getBinaryData(path, homelandCutFactor, edgeCutFactor, showPictures)
+    lt = InteractiveSelector.InteractiveSelector(binaryEdges)
+    print 'Done editing by hand!'
+    editedBinary = lt.image
 
-    # Resize images so that my lineage separating program works well on them.
-    #fluor1 = skimage.transform.rescale(fluor1, 0.5)
-    #brightfield = skimage.transform.rescale(brightfield, 0.5)
+    # Fill holes
+    #editedBinary = ndimage.binary_fill_holes(editedBinary)
 
-    ### Use SimpleCV to find circle for now ###
-    print 'Finding the center...'
-    (center, radius) = findBrightfieldCircle(brightfield, showPictures=showPictures)
-
-    # Filter, clean things up
-    print 'Cleaning up image with filters...'
-    filtered = ski.filter.rank.median(fluor1, ski.morphology.disk(2))
-    if showPictures: showImage(filtered)
-
-    # Find sectors
-    print 'Finding edges...'
-    edges = ski.filter.sobel(filtered)
-    if showPictures: showImage(edges)
-
-    # Cut out center
-    print 'Cutting out center...'
-    (rr, cc) = ski.draw.circle(center[0], center[1], homelandCutFactor*radius)
-    edges[rr, cc] = 0
-    # Cut out edge as we get artifacts there. Note that we could fix this by
-    # using some sort of bandpass filter, but python is being a pain so we won't
-    # do that right now
-
-    (rr, cc) = ski.draw.circle(center[0], center[1], radius*edgeCutFactor)
-    mask = np.zeros(np.shape(edges))
-    mask[rr, cc] = 1
-
-    edges = np.multiply(mask, edges)
-
-    # Binarize
-    binaryValue = ski.filter.threshold_otsu(edges)
-    binary = edges > binaryValue
-
-    # Now seperate into distinct lineages using my circular seperator program.
-    binaryLabels = circ.getLabelImage()
+    binaryLabels = ski.morphology.label(editedBinary, neighbors=4, background=False) + 1
 
     if showPictures: showImage(binaryLabels)
 
     # Filter out small labels
-    necessaryLength = .8*radius - homelandCutFactor*radius
-    filteredLabels = filterSectors(binaryLabels, center, minLength=int(necessaryLength), showPictures=showPictures)
+    print 'Filtering out small labels...'
+    necessaryLength = 150
+    filteredLabels = filterSectors(binaryLabels, center, minLength= necessaryLength, showPictures=showPictures)
 
-    if showPictures: showImage(ski.color.label2rgb(filteredLabels - 1))
+    if showPictures: showImage(ski.color.label2rgb(filteredLabels, bg_label=0))
 
-    # Get the data of the sectors
-    chiralityData = getChiralityData(filteredLabels, center)
-    return filteredLabels, chiralityData
+    # Get the labels of the different sectors
+    print 'Done!'
+    return filteredLabels
