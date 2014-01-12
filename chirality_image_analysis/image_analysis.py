@@ -15,6 +15,7 @@ import skimage.io
 import skimage.filter
 import skimage.morphology
 import skimage.draw
+import skimage.segmentation
 import SimpleCV as cv
 
 
@@ -37,40 +38,6 @@ def findBrightfieldCircle(brightfield, showPictures=False):
         showImage(brightfieldCV.getNumpy())
     
     return center, radius
-
-def filterSectors(labels, center, minLength=250, showPictures=True):
-    """ Returns a new labeled image with poor quality sectors
-    filtered out. This basically means the sector is not long
-    enough."""
-    
-    if showPictures:
-        labelImage = ski.color.label2rgb(labels, bg_label=0)
-        showImage(labelImage)
-    
-    filteredLabels = labels * 0
-    chiralityData = getChiralityData(labels, center)    
-    
-    #### Apply the filter ####
-    # Region properties no longer works, as the regions are now
-    # technically disconnected. So don't use that!
-
-    uniqueLabels = np.unique(labels)
-    uniqueLabels = uniqueLabels[uniqueLabels != 0]
-    
-    for currentLabel in uniqueLabels:
-        # Get current data
-        currentData = chiralityData[chiralityData['label'] == currentLabel]
-        # Get minimum and maximum r
-        minR = currentData['r'].min()
-        maxR = currentData['r'].max()
-        if maxR - minR > minLength:
-            filteredLabels[currentData['x'], currentData['y']] = currentLabel
-    # Let's assume this does a good enough filtering job for now.
-    # Now figure out the chirality!
-    
-    if showPictures: showImage(ski.color.label2rgb(labels, bg_label=0))
-    
-    return filteredLabels
 
 def getBinaryData(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=False):
     """Finds the edges in an image by looking at the first
@@ -134,9 +101,6 @@ def findSectors(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=Fa
     print 'Done editing by hand!'
     editedBinary = lt.image
 
-    # Fill holes
-    #editedBinary = ndimage.binary_fill_holes(editedBinary)
-
     binaryLabels = ski.morphology.label(editedBinary, neighbors=4, background=False) + 1
 
     if showPictures: showImage(binaryLabels)
@@ -144,10 +108,13 @@ def findSectors(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=Fa
     # Filter out small labels
     print 'Filtering out small labels...'
     necessaryLength = 150
-    filteredLabels = filterSectors(binaryLabels, center, minLength= necessaryLength, showPictures=showPictures)
+    filteredLabels = ski.morphology.remove_small_objects(\
+        binaryLabels, min_size=necessaryLength, connectivity=4, in_place=True)
 
     if showPictures: showImage(ski.color.label2rgb(filteredLabels, bg_label=0))
 
+    filteredLabels, forwardmap, inversemap = ski.segmentation.relabel_sequential(filteredLabels, offset=1)
+
     # Get the labels of the different sectors
     print 'Done!'
-    return filteredLabels
+    return filteredLabels, center, radius

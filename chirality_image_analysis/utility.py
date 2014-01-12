@@ -65,9 +65,19 @@ def getChiralityData(labels, center):
         coords = np.column_stack((x, y))
         data = getPositionData(coords, center)
 
+        # Thin the data, only one point at each radius!
+        minR_int = np.floor(data['r'].min())
+        maxR_int = np.ceil(data['r'].max())
+        bins = np.arange(minR_int, maxR_int, 1)
+        groups = data.groupby(pd.cut(data['r'], bins))
+        meanData = groups.mean()
+        # Now finish using the chirality data
+        data = meanData
+        data = data.dropna()
+
         # Now rotate the coordinate system so that it is in the correct spot
         minRadiusIndex = data.r.idxmin()
-        minRadiusRow = data.iloc[minRadiusIndex]
+        minRadiusRow = data.ix[minRadiusIndex]
         minRadiusTheta = minRadiusRow['theta']
 
         data['rotated'] = data['theta'] - minRadiusTheta
@@ -78,5 +88,5 @@ def getChiralityData(labels, center):
 
         chiralityData = chiralityData.append(data)
 
-    chiralityData = chiralityData.reset_index(drop=True)
+    #chiralityData = chiralityData.reset_index(drop=True)
     return chiralityData
