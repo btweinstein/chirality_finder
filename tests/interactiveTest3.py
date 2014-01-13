@@ -20,7 +20,10 @@ showImage(ski.color.label2rgb(filteredLabels, bg_label=0))
 # Now that we have the labels, we need to get the position data of each label
 # and filter them all down to one pixel
 chiralityData = getChiralityData(filteredLabels, center)
-print chiralityData
+
+# Plot the problematic label = 1 guy
+problemData = chiralityData[chiralityData['label'] == 1]
+print problemData.head(30)
 
 chd.makeChiralityPlot(chiralityData)
 chd.visualizeChiralityData(chiralityData)

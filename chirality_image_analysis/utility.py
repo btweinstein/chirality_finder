@@ -41,9 +41,12 @@ def loopTheta(theta):
     return theta
 
 def getPositionData(coords, center):
-    (x, y) = (coords[:, 0], coords[:, 1])
-    deltaX = x - center[0]
-    deltaY = y - center[1]
+    y, x = (coords[:, 0], coords[:, 1])
+
+    print center
+
+    deltaY = y - center[0]
+    deltaX = x - center[1]
 
     # Get distance from center
     deltaR = np.column_stack((x, y, deltaX, deltaY))
@@ -61,8 +64,10 @@ def getChiralityData(labels, center):
     uniqueLabels = np.unique(labels)
     uniqueLabels = uniqueLabels[uniqueLabels != 0]
     for currentLabel in uniqueLabels:
-        (x,y) = np.nonzero(labels == currentLabel)
-        coords = np.column_stack((x, y))
+        # Unfortunately, getting from row/column to x/y
+        # is somewhat irritating.
+        coords = np.transpose(np.nonzero(labels == currentLabel))
+
         data = getPositionData(coords, center)
 
         # Thin the data, only one point at each radius!
@@ -73,7 +78,7 @@ def getChiralityData(labels, center):
         meanData = groups.mean()
         # Now finish using the chirality data
         data = meanData
-        data = data.dropna()
+        #data = data.dropna()
 
         # Now rotate the coordinate system so that it is in the correct spot
         minRadiusIndex = data.r.idxmin()

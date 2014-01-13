@@ -26,7 +26,7 @@ def visualizeChiralityData(chiralityData):
     print numColors
     currentColor = 0
     for name, group in groups:
-        group.plot(x='y',y='x', label=name, color=plt.cm.jet(1.*currentColor/numColors))
+        group.plot(x='x',y='y', label=name, color=plt.cm.jet(1.*currentColor/numColors))
         currentColor += 1
     fig.gca().invert_yaxis()
     plt.legend()
