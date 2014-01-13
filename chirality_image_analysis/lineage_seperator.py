@@ -6,6 +6,7 @@ import skimage as ski
 import skimage.draw
 import skimage.morphology
 from utility import *
+from chirality_data_analysis.data_analysis import *
 
 ######## Main Class ########
 #TODO: Try using multiple radii at once, but don't sweep so only the last radius matters
@@ -17,9 +18,8 @@ class Circle:
         self.center = center
 
         # Now find the minimum and maximum radius
-        [xcoords, ycoords] = np.where(inputImage != 0)
-        stack = np.column_stack((xcoords, ycoords))
-        data = getPositionData(stack, self.center)
+        coords = getNonzeroCoordinates(inputImage)
+        data = getPositionData(coords, self.center)
 
         self._maxRadius = int(np.floor(data.r.max()))
         self._minRadius = int(np.ceil(data.r.min()))
@@ -34,33 +34,33 @@ class Circle:
 
     def setPointsAtRadius(self):
 
-        xpoints, ypoints = ski.draw.circle_perimeter(self.center[0], self.center[1], self._radius)
+        ypoints, xpoints = ski.draw.circle_perimeter(self.center[0], self.center[1], self._radius)
         # Remove the points that fall outside the image
-        coords = np.column_stack((xpoints, ypoints))
-        coordArray = pd.DataFrame(data=coords, columns=['x', 'y'])
+        coords = np.column_stack((ypoints, xpoints))
+        coordArray = pd.DataFrame(data=coords, columns=['y', 'x'])
         coordArray = coordArray[(coordArray['x'] >= 0) & (coordArray['y'] >= 0)]
-        coordArray = coordArray[(coordArray['x'] < self.inputImage.shape[0]) &  \
-                                (coordArray['y'] < self.inputImage.shape[1])]
+        coordArray = coordArray[(coordArray['x'] < self.inputImage.shape[1]) &  \
+                                (coordArray['y'] < self.inputImage.shape[0])]
         self._xpoints = coordArray['x'].values
         self._ypoints = coordArray['y'].values
 
     def getLabeledPointsAtRadius(self):
         """Gets all points at the radius and their position data. Returns connected component labels
         (8 neighbors) too. Returns labels greater than the current maximum label."""
-        index = np.where(self.inputImage[self._xpoints, self._ypoints])
+        index = np.where(self.inputImage[self._ypoints, self._xpoints])
 
         xPOI = self._xpoints[index]
         yPOI = self._ypoints[index]
 
         # Create a new image that we use connected components on
         cImage = np.zeros(self.inputImage.shape, dtype=np.int)
-        cImage[xPOI, yPOI] = 1
+        cImage[yPOI, xPOI] = 1
         labelImage = skimage.morphology.label(cImage, neighbors=8) + 1
 
-        poi_coords = np.column_stack((xPOI, yPOI))
+        poi_coords = np.column_stack((yPOI, xPOI))
         poi_data = getPositionData(poi_coords, self.center)
         # Label connected components
-        poi_data['_clabel'] = labelImage[poi_data['x'], poi_data['y']]
+        poi_data['_clabel'] = labelImage[poi_data['y'], poi_data['x']]
         poi_data['_clabel'] += self._maxLabel
 
         return poi_data
@@ -131,9 +131,9 @@ class Circle:
         for i in range(len(self._sectorHistory)):
             for sector in self._sectorHistory[i]:
                 if not debug:
-                    labelImage[sector._xvalues, sector._yvalues] = sector._clabel
+                    labelImage[sector._yvalues, sector._xvalues] = sector._clabel
                 else:
-                    labelImage[sector._xvalues, sector._yvalues] = i
+                    labelImage[sector._yvalues, sector._xvalues] = i
         return labelImage
 
     def getSectorLabelImage(self):
@@ -159,7 +159,7 @@ class Circle_Sector:
         self._radius = radius
         self._center = center
 
-        allPoints = np.column_stack((self._xvalues, self._yvalues))
+        allPoints = np.column_stack((self._yvalues, self._xvalues))
         self._positionData = getPositionData(allPoints, self._center)
 
         self._maxTheta = self._positionData.theta.max()

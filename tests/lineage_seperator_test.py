@@ -8,9 +8,9 @@ from chirality_image_analysis import lineage_seperator
 from chirality_image_analysis.utility import  *
 
 
-testImage = ski.io.imread('Example.tif')
+testImage = ski.io.imread('binaryEdges.tiff')
 testImage = (testImage > 0)
-center = np.array([118, 101])
+center = np.array([512, 696])
 showImage(testImage)
 circ = lineage_seperator.Circle(testImage, center)
 print 'Max radius: ' , circ._maxRadius

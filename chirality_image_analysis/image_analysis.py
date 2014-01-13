@@ -89,7 +89,7 @@ def getBinaryData(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=
 
     return binaryEdges, center, radius
 
-def findSectors(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=False):
+def findSectors(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=False, exportBinaryEdges=False):
     """Finds the sectors in an image by looking at the first
     fluorescence image (the first channel).
 
@@ -97,10 +97,12 @@ def findSectors(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=Fa
     approximately a single pixel."""
 
     binaryEdges, center, radius = getBinaryData(path, homelandCutFactor, edgeCutFactor, showPictures)
+    if exportBinaryEdges:
+        print 'Exporting image to test folder...'
+        ski.io.imsave('binaryEdges.tiff', binaryEdges)
     lt = InteractiveSelector.InteractiveSelector(binaryEdges)
     print 'Done editing by hand!'
     editedBinary = lt.image
-
     binaryLabels = ski.morphology.label(editedBinary, neighbors=4, background=False) + 1
 
     if showPictures: showImage(binaryLabels)
