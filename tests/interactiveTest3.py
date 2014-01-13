@@ -9,6 +9,7 @@ from chirality_image_analysis.utility import *
 from chirality_data_analysis import data_analysis as chd
 import skimage as ski
 import skimage.color
+import skimage.io
 
 currentData = desiredColonies[desiredColonies.name == 'ReplicateB']
 latestDate = currentData.irow(currentData['date'].argmax())
@@ -31,6 +32,10 @@ chiralityData = chd.getChiralityData(filteredLabels, center)
 #print problemData.head(30)
 
 chd.makeChiralityPlot(chiralityData)
-chd.visualizeChiralityData(chiralityData)
+chd.visualizeSectors(chiralityData)
+
+# Overlay the sectors on the image now
+chd.visualizeSectors(chiralityData, overImage=True)
+ski.io.imshow(img, interpolation='None')
 
 plt.show()

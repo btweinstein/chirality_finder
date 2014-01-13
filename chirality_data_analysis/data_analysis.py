@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+colormapChoice = plt.cm.Set1
+
 def getPositionData(coords, center):
     """Coordinates are in y,x form like that returned from getNonzeroCoordinates"""
     y, x = (coords[:, 0], coords[:, 1])
@@ -87,27 +89,37 @@ def  makeChiralityPlot(chiralityData):
         labelData = labelData.sort(columns=['r'])
         # Somehow I still don't think we have a unique theta at every r. Let us fix that.
         # We can do that later. Let us apply this to the other replicate and see what happens.
-        labelData.plot(x='r', y='rotated', style='+-', label=currentLabel, color=plt.cm.jet(1.*currentColor/numColors))
+        labelData.plot(x='r', y='rotated', style='+-', label=currentLabel, color=colormapChoice(1.*currentColor/numColors))
         currentColor += 1
     plt.xlabel('r')
     plt.ylabel('d$\\theta$')
     plt.title('Chirality')
-    plt.legend()
+    plt.legend(bbox_to_anchor=(1.02, 1), loc=2, borderaxespad=0.)
     return f
 
-def visualizeChiralityData(chiralityData):
-    """Plots the different sectors"""
+def visualizeSectors(chiralityData, overImage=False):
+    """Plots the different sectors. If being plotted before an image to be overlayed,
+    set overImage=True."""
     fig = plt.figure()
     groups = chiralityData.groupby('label')
     numColors = len(groups)
     print numColors
     currentColor = 0
     for name, group in groups:
-        group.plot(x='x',y='y', style='+-', label=name, color=plt.cm.jet(1.*currentColor/numColors))
+        if not overImage:
+            group.plot(x='x',y='y', style='+-', label=name, color=colormapChoice(1.*currentColor/numColors))
+        else: # Make skinnier by getting rid of +, no grid lines
+            group.plot(x='x',y='y', style='-', label=name, color=colormapChoice(1.*currentColor/numColors))
         currentColor += 1
-    fig.gca().invert_yaxis()
+    if not overImage:
+        fig.gca().invert_yaxis()
+    else:
+        plt.grid()
     plt.xlabel('x')
     plt.ylabel('y')
     plt.title('Sector Boundaries')
-    plt.legend()
+    box = plt.gca().get_position()
+    plt.gca().set_position([box.x0, box.y0, box.width*0.95, box.height])
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    #plt.legend(bbox_to_anchor=(1.02, 1), loc=2, borderaxespad=0.)
     return fig
