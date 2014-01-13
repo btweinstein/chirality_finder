@@ -34,11 +34,17 @@ def getChiralityData(labels, center):
         data = getPositionData(coords, center)
 
         # Thin the data, only one point at each radius!
+        # Be careful, however, as the mean of r or theta is not what you want. You want to
+        # find the median (x, y) / (dx, dy) and calculate everything again based on that! As
+        # the mean theta is not the same thing as the arctan2 of the mean dx/dy
         minR_int = np.floor(data['r'].min())
         maxR_int = np.ceil(data['r'].max())
         bins = np.arange(minR_int, maxR_int, 1)
         groups = data.groupby(pd.cut(data['r'], bins))
         meanData = groups.mean()
+        # Recalculate r and theta as the average does not depend linearly on x/y
+        meanData['r'] = np.sqrt(meanData['dx']**2 + meanData['dy']**2)
+        meanData['theta'] = np.arctan2(meanData['dy'], meanData['dx'])
         # Now finish using the chirality data
         data = meanData
         #data = data.dropna()
@@ -83,6 +89,9 @@ def  makeChiralityPlot(chiralityData):
         # We can do that later. Let us apply this to the other replicate and see what happens.
         labelData.plot(x='r', y='rotated', style='+-', label=currentLabel, color=plt.cm.jet(1.*currentColor/numColors))
         currentColor += 1
+    plt.xlabel('r')
+    plt.ylabel('d$\\theta$')
+    plt.title('Chirality')
     plt.legend()
     return f
 
@@ -94,8 +103,11 @@ def visualizeChiralityData(chiralityData):
     print numColors
     currentColor = 0
     for name, group in groups:
-        group.plot(x='x',y='y', label=name, color=plt.cm.jet(1.*currentColor/numColors))
+        group.plot(x='x',y='y', style='+-', label=name, color=plt.cm.jet(1.*currentColor/numColors))
         currentColor += 1
     fig.gca().invert_yaxis()
+    plt.xlabel('x')
+    plt.ylabel('y')
+    plt.title('Sector Boundaries')
     plt.legend()
     return fig

@@ -14,12 +14,21 @@ currentData = desiredColonies[desiredColonies.name == 'ReplicateB']
 latestDate = currentData.irow(currentData['date'].argmax())
 latestPath = latestDate['path']
 
-filteredLabels, center, finalRadius = chi.findSectors(latestPath, showPictures=False, exportBinaryEdges=True)
+img = ski.io.imread(latestPath)
+fluor1 = img[:, :, 0]
+fluor2 = img[:, :, 1]
+brightfield = img[:, :, 2]
+
+filteredLabels, center, finalRadius = chi.findSectors(fluor1, brightfield, showPictures=False, exportBinaryEdges=True)
 showImage(ski.color.label2rgb(filteredLabels, bg_label=0))
 
 # Now that we have the labels, we need to get the position data of each label
 # and filter them all down to one pixel
 chiralityData = chd.getChiralityData(filteredLabels, center)
+
+# Look at the problem data, label #5
+#problemData = chiralityData[chiralityData['label'] == 5]
+#print problemData.head(30)
 
 chd.makeChiralityPlot(chiralityData)
 chd.visualizeChiralityData(chiralityData)

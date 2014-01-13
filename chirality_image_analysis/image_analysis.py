@@ -39,19 +39,12 @@ def findBrightfieldCircle(brightfield, showPictures=False):
     
     return center, radius
 
-def getBinaryData(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=False):
+def getBinaryData(fluor, brightfield, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=False):
     """Finds the edges in an image by looking at the first
     fluorescence image (the first channel).
 
     Returns a labeled image with regions filed down to
     approximately a single pixel."""
-
-    img = ski.io.imread(path)
-    if showPictures:
-        showImage(img)
-    fluor1 = img[:, :, 0]
-    #fluor2 = img[:, :, 1]
-    brightfield = img[:, :, 2]
 
     ### Use SimpleCV to find circle for now ###
     print 'Finding the center...'
@@ -59,7 +52,7 @@ def getBinaryData(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=
 
     # Filter, clean things up
     print 'Cleaning up image with filters...'
-    filtered = ski.filter.rank.median(fluor1, ski.morphology.disk(2))
+    filtered = ski.filter.rank.median(fluor, ski.morphology.disk(2))
     if showPictures: showImage(filtered)
 
     # Find sectors
@@ -89,14 +82,14 @@ def getBinaryData(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=
 
     return binaryEdges, center, radius
 
-def findSectors(path, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=False, exportBinaryEdges=False):
+def findSectors(fluor, brightfield, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=False, exportBinaryEdges=False):
     """Finds the sectors in an image by looking at the first
     fluorescence image (the first channel).
 
     Returns a labeled image with regions filed down to
     approximately a single pixel."""
 
-    binaryEdges, center, radius = getBinaryData(path, homelandCutFactor, edgeCutFactor, showPictures)
+    binaryEdges, center, radius = getBinaryData(fluor, brightfield, homelandCutFactor, edgeCutFactor, showPictures)
     if exportBinaryEdges:
         print 'Exporting image to test folder...'
         ski.io.imsave('binaryEdges.tiff', binaryEdges)
