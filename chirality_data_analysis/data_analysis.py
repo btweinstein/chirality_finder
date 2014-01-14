@@ -94,7 +94,9 @@ def  makeChiralityPlot(chiralityData):
     plt.xlabel('r')
     plt.ylabel('d$\\theta$')
     plt.title('Chirality')
-    plt.legend(bbox_to_anchor=(1.02, 1), loc=2, borderaxespad=0.)
+    box = plt.gca().get_position()
+    plt.gca().set_position([box.x0, box.y0, box.width*0.95, box.height])
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     return f
 
 def visualizeSectors(chiralityData, overImage=False):
@@ -103,7 +105,6 @@ def visualizeSectors(chiralityData, overImage=False):
     fig = plt.figure()
     groups = chiralityData.groupby('label')
     numColors = len(groups)
-    print numColors
     currentColor = 0
     for name, group in groups:
         if not overImage:
