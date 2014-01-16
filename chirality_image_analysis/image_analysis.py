@@ -39,7 +39,7 @@ def findBrightfieldCircle(brightfield, showPictures=False):
     
     return center, radius
 
-def getBinaryData(fluor, brightfield, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=False):
+def getBinaryData(fluor, brightfield, homelandCutFactor=0.33, edgeCutFactor=0.9, threshold_factor = 1.0, showPictures=False):
     """Finds the edges in an image by looking at the first
     fluorescence image (the first channel).
 
@@ -64,10 +64,10 @@ def getBinaryData(fluor, brightfield, homelandCutFactor=0.33, edgeCutFactor=0.9,
     print 'Cutting out center...'
     (rr, cc) = ski.draw.circle(center[0], center[1], homelandCutFactor*radius)
     edges[rr, cc] = 0
+
     # Cut out edge as we get artifacts there. Note that we could fix this by
     # using some sort of bandpass filter, but python is being a pain so we won't
     # do that right now
-
     (rr, cc) = ski.draw.circle(center[0], center[1], radius*edgeCutFactor)
     mask = np.zeros(np.shape(edges))
     mask[rr, cc] = 1
@@ -76,20 +76,20 @@ def getBinaryData(fluor, brightfield, homelandCutFactor=0.33, edgeCutFactor=0.9,
 
     # Binarize
     binaryValue = ski.filter.threshold_otsu(edges)
-    binaryEdges = edges > binaryValue
+    binaryEdges = edges > binaryValue*float(threshold_factor)
 
     if showPictures: showImage(binaryEdges)
 
     return binaryEdges, center, radius
 
-def findSectors(fluor, brightfield, homelandCutFactor=0.33, edgeCutFactor=0.9, showPictures=False, exportBinaryEdges=False):
+def findSectors(fluor, brightfield, homelandCutFactor=0.33, edgeCutFactor=0.9, threshold_factor = 1.0, showPictures=False, exportBinaryEdges=False):
     """Finds the sectors in an image by looking at the first
     fluorescence image (the first channel).
 
     Returns a labeled image with regions filed down to
     approximately a single pixel."""
 
-    binaryEdges, center, radius = getBinaryData(fluor, brightfield, homelandCutFactor, edgeCutFactor, showPictures)
+    binaryEdges, center, radius = getBinaryData(fluor, brightfield, homelandCutFactor, edgeCutFactor, threshold_factor, showPictures)
     if exportBinaryEdges:
         print 'Exporting image to test folder...'
         ski.io.imsave('binaryEdges.tiff', binaryEdges)

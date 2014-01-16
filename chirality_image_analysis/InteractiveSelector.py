@@ -36,9 +36,13 @@ class InteractiveSelector:
         print 'Done editing by hand!'
 
     def key_press(self, event):
-        if event.key == 'a': # Lasso Tool
-            print 'Lasso Tool: On'
-            self.lasso = w.LassoSelector(self.ax, self.lasso_callback, useblit=True)
+        if event.key == 'a': # Lasso Black Tool
+            print 'Black Lasso Tool: On'
+            self.lasso = w.LassoSelector(self.ax, self.black_lasso_callback, useblit=True)
+            plt.draw()
+        if event.key == 'w': # Lasso White Tool
+            print 'White Lasso Tool: On'
+            self.lasso = w.LassoSelector(self.ax, self.white_lasso_callback, useblit=True)
             plt.draw()
         if event.key =='t': # Cut Tool
             print 'Cut Tool: On'
@@ -74,7 +78,19 @@ class InteractiveSelector:
         self.cutter = None
         plt.draw()
 
-    def lasso_callback(self, verts):
+    def white_lasso_callback(self, verts):
+        yindices = np.array([f[0] for f in verts])
+        xindices = np.array([f[1] for f in verts])
+        rr, cc = ski.draw.polygon(xindices, yindices)
+        self.prevImage = self.image.copy()
+        self.image[rr, cc] = True
+        ski.io.imshow(self.image)
+
+        self.lasso.disconnect_events()
+        self.lasso = None
+        plt.draw()
+
+    def black_lasso_callback(self, verts):
         yindices = np.array([f[0] for f in verts])
         xindices = np.array([f[1] for f in verts])
         rr, cc = ski.draw.polygon(xindices, yindices)
