@@ -9,6 +9,7 @@ import skimage.morphology
 import skimage.color
 from chirality_image_analysis.utility import *
 
+
 class InteractiveSelector:
     """Choose regions by hand that should be black
     in a binary image."""
@@ -19,13 +20,20 @@ class InteractiveSelector:
         self.fig = showImage(self.image)
         self.ax = self.fig.gca()
 
+        self.isdone=False
         self.key_press_id = self.fig.canvas.mpl_connect('key_press_event', self.key_press)
+        self.close_id = self.fig.canvas.mpl_connect('close_event', self.onclose)
 
         self.lasso = None
         self.cutter = None
         self.labelFig = None
 
         plt.show()
+        print 'Launched...'
+
+    def onclose(self, event):
+        self.isdone=True
+        print 'Done editing by hand!'
 
     def key_press(self, event):
         if event.key == 'a': # Lasso Tool

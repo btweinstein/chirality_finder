@@ -1,15 +1,15 @@
 __author__ = 'bryan'
 
-import matplotlib
-matplotlib.use('Qt4Agg')
 import matplotlib.pyplot as plt
+import skimage as ski
+import skimage.color
+import skimage.io
+
 from chirality_data_analysis.example_data import *
 from chirality_image_analysis import image_analysis as chi
 from chirality_image_analysis.utility import *
 from chirality_data_analysis import data_analysis as chd
-import skimage as ski
-import skimage.color
-import skimage.io
+
 
 currentData = desiredColonies[desiredColonies.name == 'ReplicateB']
 latestDate = currentData.irow(currentData['date'].argmax())

@@ -94,7 +94,6 @@ def findSectors(fluor, brightfield, homelandCutFactor=0.33, edgeCutFactor=0.9, s
         print 'Exporting image to test folder...'
         ski.io.imsave('binaryEdges.tiff', binaryEdges)
     lt = InteractiveSelector.InteractiveSelector(binaryEdges)
-    print 'Done editing by hand!'
     editedBinary = lt.image
     binaryLabels = ski.morphology.label(editedBinary, neighbors=4, background=False) + 1
 
