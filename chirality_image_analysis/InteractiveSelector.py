@@ -29,7 +29,6 @@ class InteractiveSelector:
         self.labelFig = None
 
         plt.show()
-        print 'Launched...'
 
     def onclose(self, event):
         self.isdone=True

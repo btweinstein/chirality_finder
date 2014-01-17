@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-colormapChoice = plt.cm.Set1
+colormapChoice = plt.cm.jet
 
 def getPositionData(coords, center):
     """Coordinates are in y,x form like that returned from getNonzeroCoordinates"""
@@ -94,9 +94,9 @@ def  makeChiralityPlot(chiralityData):
     plt.xlabel('r')
     plt.ylabel('d$\\theta$')
     plt.title('Chirality')
-    box = plt.gca().get_position()
-    plt.gca().set_position([box.x0, box.y0, box.width*0.95, box.height])
-    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    #box = plt.gca().get_position()
+    #plt.gca().set_position([box.x0, box.y0, box.width*0.95, box.height])
+    #plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     return f
 
 def visualizeSectors(chiralityData, overImage=False):
@@ -119,8 +119,8 @@ def visualizeSectors(chiralityData, overImage=False):
     plt.xlabel('x')
     plt.ylabel('y')
     plt.title('Sector Boundaries')
-    box = plt.gca().get_position()
-    plt.gca().set_position([box.x0, box.y0, box.width*0.95, box.height])
-    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    #box = plt.gca().get_position()
+    #plt.gca().set_position([box.x0, box.y0, box.width*0.95, box.height])
+    #plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     #plt.legend(bbox_to_anchor=(1.02, 1), loc=2, borderaxespad=0.)
     return fig
