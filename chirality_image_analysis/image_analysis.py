@@ -17,7 +17,7 @@ import skimage.morphology
 import skimage.draw
 import skimage.segmentation
 import SimpleCV as cv
-
+import matplotlib.pyplot as plt
 
 def findBrightfieldCircle(brightfield, showPictures=False):
     """Finds the circle (boundary) in a brightfield numpy image.
@@ -39,7 +39,31 @@ def findBrightfieldCircle(brightfield, showPictures=False):
     
     return center, radius
 
-def getBinaryData(fluor, brightfield, homelandCutFactor=0.33, edgeCutFactor=0.9, threshold_factor = 1.0, showPictures=False):
+def selectPoint(image):
+    class Select_Point:
+        def __init__(self, image_matrix):
+            self.center = None
+            self.image = image_matrix
+            self.figure = plt.figure()
+            self.figure.canvas.mpl_connect('button_press_event', self.buttonPressed)
+            self.figure.canvas.mpl_connect('button_release_event', self.buttonReleased())
+            ski.io.imshow(image_matrix)
+            plt.show()
+
+        def buttonPressed(self, event):
+            self.center = (event.xdata, event.ydata)
+            print 'Center set:' , self.center
+
+        def buttonReleased(self, event):
+            plt.plot(self.center[0], self.center[1])
+            plt.draw()
+
+    p = Select_Point(image)
+
+    return p.center
+
+def getBinaryData(fluor, brightfield, homelandCutFactor=0.33, edgeCutFactor=0.9, threshold_factor = 1.0, showPictures=False, \
+                  select_center_manually = False, originalImage = None):
     """Finds the edges in an image by looking at the first
     fluorescence image (the first channel).
 
@@ -47,8 +71,15 @@ def getBinaryData(fluor, brightfield, homelandCutFactor=0.33, edgeCutFactor=0.9,
     approximately a single pixel."""
 
     ### Use SimpleCV to find circle for now ###
-    print 'Finding the center...'
-    (center, radius) = findBrightfieldCircle(brightfield, showPictures=showPictures)
+    if not select_center_manually:
+        print 'Finding the center...'
+        (center, radius) = findBrightfieldCircle(brightfield, showPictures=showPictures)
+    else:
+        print 'Please select the center.'
+        center = np.array(selectPoint(originalImage))
+        print 'Please select where you think the boundary of the expansion is.'
+        edge = np.array(selectPoint(originalImage))
+        radius = np.linalg.norm(edge - center)
 
     # Filter, clean things up
     print 'Cleaning up image with filters...'
