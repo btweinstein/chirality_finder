@@ -22,6 +22,7 @@ def getPositionData(coords, center):
 
     return currentData
 
+binningInterval = 1
 def getChiralityData(labels, center):
 
     chiralityData = pd.DataFrame()
@@ -41,7 +42,7 @@ def getChiralityData(labels, center):
         # the mean theta is not the same thing as the arctan2 of the mean dx/dy
         minR_int = np.floor(data['r'].min())
         maxR_int = np.ceil(data['r'].max())
-        bins = np.arange(minR_int, maxR_int, 1)
+        bins = np.arange(minR_int, maxR_int, binningInterval)
         groups = data.groupby(pd.cut(data['r'], bins))
         meanData = groups.mean()
         # Recalculate r and theta as the average does not depend linearly on x/y
