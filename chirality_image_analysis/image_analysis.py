@@ -45,24 +45,28 @@ def selectPoint(image):
             self.center = None
             self.image = image_matrix
             self.figure = plt.figure()
+            self.pointAxes = None
             self.figure.canvas.mpl_connect('button_press_event', self.buttonPressed)
-            self.figure.canvas.mpl_connect('button_release_event', self.buttonReleased())
+            self.figure.canvas.mpl_connect('button_release_event', self.buttonReleased)
             ski.io.imshow(image_matrix)
             plt.show()
 
         def buttonPressed(self, event):
-            self.center = (event.xdata, event.ydata)
+            if self.pointAxes is not None:
+                plt.cla()
+            self.center = (event.ydata, event.xdata)
             print 'Center set:' , self.center
 
         def buttonReleased(self, event):
-            plt.plot(self.center[0], self.center[1])
+            self.pointAxes = plt.plot(self.center[1], self.center[0], 'o')
+            ski.io.imshow(self.image)
             plt.draw()
 
     p = Select_Point(image)
 
     return p.center
 
-def getBinaryData(fluor, brightfield, homelandCutFactor=0.33, edgeCutFactor=0.9, threshold_factor = 1.0, showPictures=False, \
+def getBinaryData(fluor, brightfield, homelandCutFactor=0.33, edgeCutFactor=0.9, threshold_factor = 1.0, showPictures=False,
                   select_center_manually = False, originalImage = None):
     """Finds the edges in an image by looking at the first
     fluorescence image (the first channel).
@@ -113,14 +117,17 @@ def getBinaryData(fluor, brightfield, homelandCutFactor=0.33, edgeCutFactor=0.9,
 
     return binaryEdges, center, radius
 
-def findSectors(fluor, brightfield, homelandCutFactor=0.33, edgeCutFactor=0.9, threshold_factor = 1.0, showPictures=False, exportBinaryEdges=False):
+def findSectors(fluor, brightfield, homelandCutFactor=0.33, edgeCutFactor=0.9, threshold_factor = 1.0, showPictures=False,
+                exportBinaryEdges=False, select_center_manually = False, originalImage = None):
     """Finds the sectors in an image by looking at the first
     fluorescence image (the first channel).
 
     Returns a labeled image with regions filed down to
     approximately a single pixel."""
 
-    binaryEdges, center, radius = getBinaryData(fluor, brightfield, homelandCutFactor, edgeCutFactor, threshold_factor, showPictures)
+    binaryEdges, center, radius = getBinaryData(fluor, brightfield, homelandCutFactor=homelandCutFactor,
+                        edgeCutFactor=edgeCutFactor, threshold_factor=threshold_factor, showPictures=showPictures,
+                        select_center_manually=select_center_manually, originalImage=originalImage)
     if exportBinaryEdges:
         print 'Exporting image to test folder...'
         ski.io.imsave('binaryEdges.tiff', binaryEdges)
