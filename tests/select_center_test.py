@@ -20,7 +20,8 @@ fluor1 = img[:, :, 0]
 fluor2 = img[:, :, 1]
 brightfield = img[:, :, 2]
 
-filteredLabels, center, finalRadius = chi.findSectors(fluor1, brightfield, select_center_manually=True, originalImage=img)
+binaryEdges, center, finalRadius = chi.getBinaryData(fluor1, brightfield, select_center_manually=True, originalImage=img)
+filteredLabels = chi.findSectors(binaryEdges, path_to_export_binary='/home/bryan')
 showImage(ski.color.label2rgb(filteredLabels, bg_label=0))
 
 # Now that we have the labels, we need to get the position data of each label

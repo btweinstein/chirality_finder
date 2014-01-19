@@ -42,29 +42,29 @@ def findBrightfieldCircle(brightfield, showPictures=False):
 def selectPoint(image):
     class Select_Point:
         def __init__(self, image_matrix):
-            self.center = None
+            self.point = None
             self.image = image_matrix
             self.figure = plt.figure()
             self.pointAxes = None
             self.figure.canvas.mpl_connect('button_press_event', self.buttonPressed)
             self.figure.canvas.mpl_connect('button_release_event', self.buttonReleased)
-            ski.io.imshow(image_matrix)
+            ski.io.imshow(image_matrix, interpolation='None')
             plt.show()
 
         def buttonPressed(self, event):
             if self.pointAxes is not None:
                 plt.cla()
-            self.center = (event.ydata, event.xdata)
-            print 'Center set:' , self.center
+            self.point = (event.ydata, event.xdata)
+            print 'Point set:' , self.point
 
         def buttonReleased(self, event):
-            self.pointAxes = plt.plot(self.center[1], self.center[0], 'o')
-            ski.io.imshow(self.image)
+            self.pointAxes = plt.plot(self.point[1], self.point[0], 'o')
+            ski.io.imshow(self.image, interpolation='None')
             plt.draw()
 
     p = Select_Point(image)
 
-    return p.center
+    return p.point
 
 def getBinaryData(fluor, brightfield, homelandCutFactor=0.33, edgeCutFactor=0.9, threshold_factor = 1.0, showPictures=False,
                   select_center_manually = False, originalImage = None):
@@ -79,6 +79,7 @@ def getBinaryData(fluor, brightfield, homelandCutFactor=0.33, edgeCutFactor=0.9,
         print 'Finding the center...'
         (center, radius) = findBrightfieldCircle(brightfield, showPictures=showPictures)
     else:
+        if originalImage is None: originalImage = brightfield
         print 'Please select the center.'
         center = np.array(selectPoint(originalImage))
         print 'Please select where you think the boundary of the expansion is.'
@@ -117,22 +118,19 @@ def getBinaryData(fluor, brightfield, homelandCutFactor=0.33, edgeCutFactor=0.9,
 
     return binaryEdges, center, radius
 
-def findSectors(fluor, brightfield, homelandCutFactor=0.33, edgeCutFactor=0.9, threshold_factor = 1.0, showPictures=False,
-                exportBinaryEdges=False, select_center_manually = False, originalImage = None):
+def findSectors(binaryEdges, showPictures=False, path_to_export_binary=None):
     """Finds the sectors in an image by looking at the first
     fluorescence image (the first channel).
 
     Returns a labeled image with regions filed down to
     approximately a single pixel."""
 
-    binaryEdges, center, radius = getBinaryData(fluor, brightfield, homelandCutFactor=homelandCutFactor,
-                        edgeCutFactor=edgeCutFactor, threshold_factor=threshold_factor, showPictures=showPictures,
-                        select_center_manually=select_center_manually, originalImage=originalImage)
-    if exportBinaryEdges:
-        print 'Exporting image to test folder...'
-        ski.io.imsave('binaryEdges.tiff', binaryEdges)
     lt = InteractiveSelector.InteractiveSelector(binaryEdges)
     editedBinary = lt.image
+    if path_to_export_binary is not None:
+        print 'Exporting user edited binary to specified location...'
+        ski.io.imsave(path_to_export_binary + '/binaryEdited.tiff', editedBinary)
+        print 'Done!'
     binaryLabels = ski.morphology.label(editedBinary, neighbors=4, background=False) + 1
 
     if showPictures: showImage(binaryLabels)
@@ -149,4 +147,4 @@ def findSectors(fluor, brightfield, homelandCutFactor=0.33, edgeCutFactor=0.9, t
 
     # Get the labels of the different sectors
     print 'Done!'
-    return filteredLabels, center, radius
+    return filteredLabels
