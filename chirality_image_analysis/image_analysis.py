@@ -10,34 +10,43 @@ import InteractiveSelector
 # External library imports
 import skimage as ski
 import skimage.color
-import numpy as np
 import skimage.io
 import skimage.filter
 import skimage.morphology
 import skimage.draw
 import skimage.segmentation
-import SimpleCV as cv
+from circle_finding import *
 import matplotlib.pyplot as plt
 
 def findBrightfieldCircle(brightfield, showPictures=False):
     """Finds the circle (boundary) in a brightfield numpy image.
     Returns the center and radius of the circle."""
-    
-    brightfieldCV = cv.Image(brightfield)
-    filtered = brightfieldCV.bandPassFilter(0.05,0.8)
-    circs = filtered.findCircle(distance=2000, canny=50)
-    # There will only be one circle as we only allow one due to "distance"
-    circs = circs[0]    
-    center = circs.coordinates()
-    radius = circs.radius()
-    
+
+    def drawBorder(image, yc, xc, R, width=5, color=[255, 0, 0]):
+        for i in range(width):
+            rr, cc = ski.draw.circle_perimeter(int(yc), int(xc), int(R - i))
+            image[rr, cc] = color
+
+    # Try to find edges of the circle
+    binary = ski.filter.canny(brightfield, sigma=5)
+    y, x = np.nonzero(binary)
+
     if showPictures:
-        circs.image = brightfieldCV
-        circs.draw(width=6)
-        brightfieldCV = brightfieldCV.applyLayers()
-        showImage(brightfieldCV.getNumpy())
-    
-    return center, radius
+        showImage(binary)
+        plt.show()
+
+    (xc, yc), (R, Ri), (res1, res2) = leastSq_circleFind_jacobian(x, y)
+    (xc, yc), (R, Ri), (res1, res2) = odr_circleFind(x, y, guess=(xc, yc))
+
+    if showPictures:
+        overlayImage = ski.color.gray2rgb(brightfield)
+        drawBorder(overlayImage, yc, xc, R, width=10)
+        plt.figure()
+        plt.plot(xc, yc, 'o')
+        ski.io.imshow(overlayImage)
+        plt.show()
+
+    return (yc, xc), R
 
 def selectPoint(image):
     class Select_Point:
