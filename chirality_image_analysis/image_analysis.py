@@ -21,7 +21,8 @@ import pandas as pd
 
 def findBrightfieldCircle(brightfield, showPictures=False, returnOverlay=False):
     """Finds the circle (boundary) in a brightfield numpy image.
-    Returns the center and radius of the circle."""
+    Returns the center and radius of the circle as well as the scaled covariance of the
+    fit. The order is row, column, radius."""
 
     def drawBorder(image, yc, xc, R, width=5, color=[255, 0, 0]):
         for i in range(width):
@@ -44,7 +45,7 @@ def findBrightfieldCircle(brightfield, showPictures=False, returnOverlay=False):
         showImage(binary)
 
     (xc, yc), R, cov_matrix = leastSq_circleFind_jacobian(x, y)
-    (xc, yc), R, cov_matrix = odr_circleFind(x, y, guess=(xc, yc))
+    (xc, yc), R, cov_matrix = odr_circleFind(x, y, guess=(xc, yc, R))
 
     overlayImage = None
     if showPictures or returnOverlay:

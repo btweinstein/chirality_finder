@@ -1,7 +1,11 @@
 __author__ = 'bryan'
 
 '''These files are ripped almost directly from
-http://wiki.scipy.org/Cookbook/Least_Squares_Circle#head-f353234ac19e695689375c7eaa2df9ab64938a03'''
+http://wiki.scipy.org/Cookbook/Least_Squares_Circle#head-f353234ac19e695689375c7eaa2df9ab64938a03
+
+The scaled error bars are returned!.'''
+
+
 
 from numpy import *
 from scipy import  odr
@@ -77,7 +81,9 @@ def leastSq_circleFind(x, y, guess=None):
     residu   = sum((Ri - R)**2)
 
     numPoints = len(x)
+    # Two parameters, so -2 in the denominator
     residual_variance = residu/(numPoints-2.)
+    print residual_variance
     cov_matrix = residual_variance * ier
 
     return (xc, yc), R, cov_matrix
@@ -118,6 +124,7 @@ def leastSq_circleFind_jacobian(x, y, guess=None):
     residu_2b    = sum((Ri_2b - R_2b)**2)
 
     numPoints = len(x)
+    # Two parameters so -2 on the bottom
     residual_variance = residu_2b/(numPoints-2.)
     cov_matrix = residual_variance * ier
 
@@ -136,9 +143,12 @@ def odr_circleFind(x, y, guess=None, maxit=1000):
     if guess is None:
         x_m, y_m = mean(x), mean(y)
     else:
-        x_m, y_m = guess[0], guess[1]
+        if len(guess) == 2:
+            x_m, y_m = guess[0], guess[1]
+            R_m = calc_R(x, y, x_m, y_m).mean()
+        else:
+            x_m, y_m, R_m = guess[0], guess[1], guess[2]
 
-    R_m = calc_R(x, y, x_m, y_m).mean()
     beta0 = [ x_m, y_m, R_m]
 
 
@@ -151,7 +161,8 @@ def odr_circleFind(x, y, guess=None, maxit=1000):
     lsc_out    = lsc_odr.run()
 
     xc_3, yc_3, R_3 = lsc_out.beta
-    cov_matrix = lsc_out.cov_beta
+    cov_matrix = lsc_out.cov_beta * lsc_out.res_var
+
 
     return (xc_3, yc_3), R_3, cov_matrix
 
@@ -207,6 +218,6 @@ def odr_circleFind_jacobian(x, y):
     lsc_out   = lsc_odr.run()
 
     xc_3b, yc_3b, R_3b = lsc_out.beta
-    cov_matrix = lsc_out.cov_beta
+    cov_matrix = lsc_out.cov_beta * lsc_out.res_var
 
     return (xc_3b, yc_3b), R_3b, cov_matrix
