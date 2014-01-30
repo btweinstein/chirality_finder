@@ -17,36 +17,53 @@ import skimage.draw
 import skimage.segmentation
 from circle_finding import *
 import matplotlib.pyplot as plt
+import pandas as pd
 
-def findBrightfieldCircle(brightfield, showPictures=False):
+def findBrightfieldCircle(brightfield, showPictures=False, returnOverlay=False):
     """Finds the circle (boundary) in a brightfield numpy image.
     Returns the center and radius of the circle."""
 
     def drawBorder(image, yc, xc, R, width=5, color=[255, 0, 0]):
         for i in range(width):
             rr, cc = ski.draw.circle_perimeter(int(yc), int(xc), int(R - i))
-            image[rr, cc] = color
+            coords = np.column_stack((rr, cc))
+            coordArray = pd.DataFrame(data=coords, columns=['y', 'x'])
+            coordArray = coordArray[(coordArray['x'] >= 0) & (coordArray['y'] >= 0)]
+            coordArray = coordArray[(coordArray['x'] < brightfield.shape[1]) &  \
+                                (coordArray['y'] < brightfield.shape[0])]
+            image[coordArray['y'], coordArray['x']] = color
 
     # Try to find edges of the circle
-    binary = ski.filter.canny(brightfield, sigma=5)
+    binary = ski.filter.canny(brightfield, sigma=2)
+    #edges = ski.filter.sobel(brightfield)
+    #binary = edges > ski.filter.threshold_otsu(edges)
+
     y, x = np.nonzero(binary)
 
     if showPictures:
         showImage(binary)
-        plt.show()
 
     (xc, yc), (R, Ri), (res1, res2) = leastSq_circleFind_jacobian(x, y)
     (xc, yc), (R, Ri), (res1, res2) = odr_circleFind(x, y, guess=(xc, yc))
 
-    if showPictures:
+    overlayImage = None
+    if showPictures or returnOverlay:
         overlayImage = ski.color.gray2rgb(brightfield)
         drawBorder(overlayImage, yc, xc, R, width=10)
-        plt.figure()
+        overlayFigure = plt.figure()
         plt.plot(xc, yc, 'o')
         ski.io.imshow(overlayImage)
-        plt.show()
 
-    return (yc, xc), R
+    if not showPictures:
+        plt.close(overlayFigure)
+
+    # Center is in y, x format for some pathological reason.
+    # I guess we are thinking in terms of row and column.
+    # TODO: Rename center to something like row_column.
+    if returnOverlay:
+        return (yc, xc), R, overlayImage
+    else:
+        return (yc, xc), R
 
 def selectPoint(image):
     class Select_Point:

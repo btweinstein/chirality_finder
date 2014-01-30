@@ -75,9 +75,12 @@ def leastSq_circleFind(x, y, guess=None):
     Ri       = calc_R(x, y, xc, yc)
     R        = Ri.mean()
     residu   = sum((Ri - R)**2)
-    residu2  = sum((Ri**2-R**2)**2)
 
-    return (xc, yc), (R, Ri), (residu, residu2)
+    numPoints = len(x)
+    residual_variance = residu/(numPoints-2.)
+    cov_matrix = residual_variance * ier
+
+    return (xc, yc), R, cov_matrix
 
 from scipy import optimize
 
@@ -113,13 +116,17 @@ def leastSq_circleFind_jacobian(x, y, guess=None):
     Ri_2b        = calc_R(x, y, xc_2b, yc_2b)
     R_2b         = Ri_2b.mean()
     residu_2b    = sum((Ri_2b - R_2b)**2)
-    residu2_2b   = sum((Ri_2b**2-R_2b**2)**2)
 
-    return (xc_2b, yc_2b), (R_2b, Ri_2b), (residu_2b, residu2_2b)
+    numPoints = len(x)
+    residual_variance = residu_2b/(numPoints-2.)
+    cov_matrix = residual_variance * ier
+
+    return (xc_2b, yc_2b), R_2b, cov_matrix
+
 
 ####### ODR ###########
 
-def odr_circleFind(x, y, guess=None):
+def odr_circleFind(x, y, guess=None, maxit=1000):
     # Basic usage of odr with an implicit function definition
     def f_3(beta, x):
         """ implicit definition of the circle """
@@ -140,15 +147,13 @@ def odr_circleFind(x, y, guess=None):
     #       data.y is the dimensionality of the response
     lsc_data   = odr.Data(row_stack([x, y]), y=1)
     lsc_model  = odr.Model(f_3, implicit=True)
-    lsc_odr    = odr.ODR(lsc_data, lsc_model, beta0)
+    lsc_odr    = odr.ODR(lsc_data, lsc_model, beta0, maxit=maxit)
     lsc_out    = lsc_odr.run()
 
     xc_3, yc_3, R_3 = lsc_out.beta
-    Ri_3       = calc_R(x, y,xc_3, yc_3)
-    residu_3   = sum((Ri_3 - R_3)**2)
-    residu2_3  = sum((Ri_3**2-R_3**2)**2)
+    cov_matrix = lsc_out.cov_beta
 
-    return (xc_3, yc_3), (R_3, Ri_3), (residu_3, residu2_3)
+    return (xc_3, yc_3), R_3, cov_matrix
 
 def odr_circleFind_jacobian(x, y):
     # Advanced usage, with jacobian
@@ -202,8 +207,6 @@ def odr_circleFind_jacobian(x, y):
     lsc_out   = lsc_odr.run()
 
     xc_3b, yc_3b, R_3b = lsc_out.beta
-    Ri_3b       = calc_R(x, y, xc_3b, yc_3b)
-    residu_3b   = sum((Ri_3b - R_3b)**2)
-    residu2_3b  = sum((Ri_3b**2-R_3b**2)**2)
+    cov_matrix = lsc_out.cov_beta
 
-    return (xc_3b, yc_3b), (R_3b, Ri_3b), (residu_3b, residu2_3b)
+    return (xc_3b, yc_3b), R_3b, cov_matrix
