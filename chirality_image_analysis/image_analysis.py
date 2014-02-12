@@ -44,6 +44,10 @@ def findBrightfieldCircle(brightfield, showPictures=False, returnOverlay=False):
     if showPictures:
         showImage(binary)
 
+    if (len(y) == 0) or (len(x) is []):
+        print 'No points from thresholded image!'
+        return None
+
     (xc, yc), R, cov_matrix = leastSq_circleFind_jacobian(x, y)
     (xc, yc), R, cov_matrix = odr_circleFind(x, y, guess=(xc, yc, R))
 
