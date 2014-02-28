@@ -97,6 +97,14 @@ def selectPoint(image):
 
     return p.point
 
+def get_coords_in_image(rr, cc, imageShape):
+    coords = np.column_stack((rr, cc))
+    coordArray = pd.DataFrame(data=coords, columns=['y', 'x'])
+    coordArray = coordArray[(coordArray['x'] >= 0) & (coordArray['y'] >= 0)]
+    coordArray = coordArray[(coordArray['x'] < imageShape[1]) &  \
+                        (coordArray['y'] < imageShape[0])]
+    return coordArray['y'], coordArray['x']
+
 def getBinaryData(fluor, brightfield, homelandCutFactor=0.33, edgeCutFactor=0.9, threshold_factor = 1.0, showPictures=False,
                   select_center_manually = False, originalImage = None):
     """Finds the edges in an image by looking at the first
@@ -135,7 +143,8 @@ def getBinaryData(fluor, brightfield, homelandCutFactor=0.33, edgeCutFactor=0.9,
     # Cut out edge as we get artifacts there. Note that we could fix this by
     # using some sort of bandpass filter, but python is being a pain so we won't
     # do that right now
-    (rr, cc) = ski.draw.circle(center[0], center[1], radius*edgeCutFactor)
+    (rr, cc) = ski.draw.circle(center[0], center[1], edgeCutFactor*radius)
+    rr, cc = get_coords_in_image(rr, cc, np.shape(edges))
     mask = np.zeros(np.shape(edges))
     mask[rr, cc] = 1
 
