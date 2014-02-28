@@ -3,7 +3,7 @@ __author__ = 'bryan'
 import pymc
 import numpy as np
 import pandas as pd
-import matplotlib as plt
+import matplotlib.pyplot as plt
 
 growthData = None
 chiralityData = None
@@ -216,3 +216,19 @@ def make_model_constantRo(current_group, av_currentChiralityData, av_currentDiff
     #######################
 
     return locals()
+
+class chirality_pymc_model:
+    def __init__(self, group_on_name, group_on_value, lenToFilter=150):
+        self.currentGrowth, self.av_chir, self.av_diff = setup_analysis(group_on_name, group_on_value, lenToFilter)
+        self.model = make_model_constantRo(self.currentGrowth, self.av_chir, self.av_diff)
+        self.M = pymc.MCMC(self.model, db='pickle', dbname=group_on_name + '_' + str(group_on_value)+'.pkl')
+        self.N = pymc.NormApprox(self.model)
+
+    def sample(self, num=10**5, burn=10*4, thin=10):
+        self.M.sample(num, burn, thin)
+
+    def saveResults(self):
+        self.M.db.close()
+
+    def fitNorm(self):
+        self.N.fit(iterlim=50000)
