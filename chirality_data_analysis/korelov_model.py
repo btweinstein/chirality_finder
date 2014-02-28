@@ -93,7 +93,7 @@ def plot_av_chirality(av_currentChiralityData):
 def bin_diffusion(currentChiralityData):
     min_x = currentChiralityData['1divri_minus_1divr_1divum'].min() - 10.**-6.
     max_x = currentChiralityData['1divri_minus_1divr_1divum'].max() + 10.**-6.
-    numBins = 60
+    numBins = 90
 
     print 'Numbins for diffusion:' , numBins
     print 'Min 1/ri - 1/r (1/um):', min_x
@@ -153,11 +153,13 @@ def plot_num_elements(av_currentDiffusionData, av_currentChiralityData):
 
 def make_model_constantRo(current_group, av_currentChiralityData, av_currentDiffusionData):
 
+    modelDict = {}
+
     ######################
     ### Velocity Piece ###
     ######################
 
-    ro = pymc.Uniform('ro', lower=0, upper=10.*1000., value=1.5*1000.)
+    ro = pymc.Uniform('ro', lower=0, upper=10.*1000., value=3*1000.)
     vpar = pymc.Uniform('vpar', lower=10.**-6, upper=1, value=1.*10**-3)
     t = current_group['timeDelta'].values
 
@@ -168,7 +170,10 @@ def make_model_constantRo(current_group, av_currentChiralityData, av_currentDiff
     R = pymc.TruncatedNormal('R', mu = modeled_R, tau=1.0/(0.1*1000)**2, a=0, \
                              value=current_group['colony_radius_um'].values, observed=True)
 
-    velocityVariables = [ro, vpar, t, R]
+    modelDict['ro'] = ro
+    modelDict['vpar'] = vpar
+    modelDict['R'] = R
+    modelDict['t'] = t
 
     #######################
     ### Chirality Piece ###
@@ -188,7 +193,8 @@ def make_model_constantRo(current_group, av_currentChiralityData, av_currentDiff
 
     dtheta = pymc.Normal('dtheta', mu = modeled_dtheta, tau=dthetaTauChir, value=dthetaDataChir, observed=True)
 
-    chiralityVariables = [vperp, dthetaDataChir]
+    modelDict['vperp'] = vperp
+    modelDict['dtheta'] = dtheta
 
     #######################
     ### Diffusion Piece ###
@@ -201,7 +207,7 @@ def make_model_constantRo(current_group, av_currentChiralityData, av_currentDiff
     numSamples = av_currentDiffusionData['rotated_righthanded', 'len'].values
     dtheta_variance_error = np.sqrt(2*np.sqrt(dtheta_variance)**4/(numSamples - 1))
 
-    ds = pymc.Uniform('ds', lower=0, upper=1, value=10.**-3)
+    ds = pymc.Uniform('ds', lower=10.**-2, upper=10**2, value=10.**0.)
 
     @pymc.deterministic
     def modeled_variance(vpar=vpar, ds=ds, dif_xaxis=dif_xaxis):
@@ -209,13 +215,15 @@ def make_model_constantRo(current_group, av_currentChiralityData, av_currentDiff
 
     var_dtheta = pymc.TruncatedNormal('var_dtheta', mu=modeled_variance, tau=1./dtheta_variance_error**2, a=0, \
                              value=dtheta_variance, observed=True)
-    diffusionVariables = [ds, var_dtheta]
+
+    modelDict['ds'] = ds
+    modelDict['var_dtheta'] = var_dtheta
 
     #######################
     ### Returning Model ###
     #######################
 
-    return locals()
+    return modelDict
 
 class chirality_pymc_model:
     def __init__(self, group_on_name, group_on_value, lenToFilter=150):
