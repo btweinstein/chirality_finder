@@ -198,7 +198,7 @@ def make_model_constantRo(current_group, av_currentChiralityData, av_currentDiff
     def modeled_variance(vpar=vpar, ds=ds, dif_xaxis=dif_xaxis):
         return (2*ds/vpar)*dif_xaxis
 
-    dtheta_variance_std = pymc.Uniform('dtheta_variance_error', lower=10.**-12, upper=1)
+    dtheta_variance_std = pymc.Uniform('dtheta_variance_error', lower=10.**-6, upper=1, value=10.**-3.)
 
     var_dtheta = pymc.TruncatedNormal('var_dtheta', mu=modeled_variance, tau=1./dtheta_variance_std**2, a=0, \
                              value=dtheta_variance, observed=True)
@@ -223,6 +223,6 @@ class chirality_pymc_model:
         self.currentGrowth, self.av_chir, self.av_diff = setup_analysis(group_on_name, group_on_value, **kwargs)
         self.model = make_model_constantRo(self.currentGrowth, self.av_chir, self.av_diff)
         self.M = pymc.MCMC(self.model, db='pickle', dbname=group_on_name + '_' + str(group_on_value)+'.pkl')
-        self.N = pymc.NormApprox(self.model)
+        self.N = pymc.MAP(self.model)
 
 
