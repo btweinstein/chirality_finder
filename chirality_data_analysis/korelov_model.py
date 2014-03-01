@@ -10,7 +10,7 @@ chiralityData = None
 
 ########### Setting up the Analysis ###############
 
-def setup_analysis(group_on_name, group_on_value, lenToFilterChir = 150, lenToFilterDiff=150, numChirBins=50, numDiffBins=50):
+def setup_analysis(group_on_name, group_on_value, lenToFilterChir = 0, lenToFilterDiff=0, numChirBins=50, numDiffBins=50):
     '''The following inputs MUST be in your pandas matrices or else everything will crash.
 
     Chirality Data:
