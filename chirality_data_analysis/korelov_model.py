@@ -10,7 +10,7 @@ chiralityData = None
 
 ########### Setting up the Analysis ###############
 
-def setup_analysis(group_on_name, group_on_value, lenToFilter = 150):
+def setup_analysis(group_on_name, group_on_value, lenToFilterChir = 150, lenToFilterDiff=150, numChirBins=50, numDiffBins=50):
     '''The following inputs MUST be in your pandas matrices or else everything will crash.
 
     Chirality Data:
@@ -33,19 +33,19 @@ def setup_analysis(group_on_name, group_on_value, lenToFilter = 150):
 
     currentChiralityData = chiralityData[(chiralityData[group_on_name] == group_on_value)]
     print
-    binnedChiralityData = bin_chirality(currentChiralityData)
+    binnedChiralityData = bin_chirality(currentChiralityData, numChirBins)
 
     av_currentChiralityData = binnedChiralityData.agg([np.mean, np.std, np.var, len])
     # The key here is to filter out the pieces that have too few elements, i.e.
     # those with less than 150 or so.
-    av_currentChiralityData = av_currentChiralityData[av_currentChiralityData['rotated_righthanded', 'len'] > lenToFilter]
+    av_currentChiralityData = av_currentChiralityData[av_currentChiralityData['rotated_righthanded', 'len'] > lenToFilterChir]
 
     plot_av_chirality(av_currentChiralityData)
 
     print
-    binnedDiffusion = bin_diffusion(currentChiralityData)
+    binnedDiffusion = bin_diffusion(currentChiralityData, numDiffBins)
     av_currentDiffusionData = binnedDiffusion.agg([np.mean, np.std, np.var, len])
-    av_currentDiffusionData = av_currentDiffusionData[av_currentDiffusionData['rotated_righthanded', 'len'] > lenToFilter]
+    av_currentDiffusionData = av_currentDiffusionData[av_currentDiffusionData['rotated_righthanded', 'len'] > lenToFilterDiff]
 
 
     plot_diffusion(av_currentDiffusionData)
@@ -60,11 +60,11 @@ def setup_analysis(group_on_name, group_on_value, lenToFilter = 150):
 
     return current_group, av_currentChiralityData, av_currentDiffusionData
 
-def bin_chirality(currentChiralityData):
+def bin_chirality(currentChiralityData, numChirBins):
 
     min_x = currentChiralityData['log_r_div_ri'].min() - 10.**-6.
     max_x = currentChiralityData['log_r_div_ri'].max() + 10.**-6.
-    numBins = 75
+    numBins = numChirBins
 
     print 'numBins for chirality:' , numBins
     print 'Min log(r/ri):', min_x
@@ -90,10 +90,10 @@ def plot_av_chirality(av_currentChiralityData):
     plt.ylabel('Average d$\\theta$')
     plt.title('Average d$\\theta$ vs. Normalized Radius')
 
-def bin_diffusion(currentChiralityData):
+def bin_diffusion(currentChiralityData, numDiffBins):
     min_x = currentChiralityData['1divri_minus_1divr_1divum'].min() - 10.**-6.
     max_x = currentChiralityData['1divri_minus_1divr_1divum'].max() + 10.**-6.
-    numBins = 90
+    numBins = numDiffBins
 
     print 'Numbins for diffusion:' , numBins
     print 'Min 1/ri - 1/r (1/um):', min_x
@@ -153,8 +153,6 @@ def plot_num_elements(av_currentDiffusionData, av_currentChiralityData):
 
 def make_model_constantRo(current_group, av_currentChiralityData, av_currentDiffusionData):
 
-    modelDict = {}
-
     ######################
     ### Velocity Piece ###
     ######################
@@ -169,11 +167,6 @@ def make_model_constantRo(current_group, av_currentChiralityData, av_currentDiff
 
     R = pymc.TruncatedNormal('R', mu = modeled_R, tau=1.0/(0.1*1000)**2, a=0, \
                              value=current_group['colony_radius_um'].values, observed=True)
-
-    modelDict['ro'] = ro
-    modelDict['vpar'] = vpar
-    modelDict['R'] = R
-    modelDict['t'] = t
 
     #######################
     ### Chirality Piece ###
@@ -192,9 +185,6 @@ def make_model_constantRo(current_group, av_currentChiralityData, av_currentDiff
     dthetaTauChir = 1.0/dthetaStdChir**2
 
     dtheta = pymc.Normal('dtheta', mu = modeled_dtheta, tau=dthetaTauChir, value=dthetaDataChir, observed=True)
-
-    modelDict['vperp'] = vperp
-    modelDict['dtheta'] = dtheta
 
     #######################
     ### Diffusion Piece ###
@@ -216,27 +206,20 @@ def make_model_constantRo(current_group, av_currentChiralityData, av_currentDiff
     var_dtheta = pymc.TruncatedNormal('var_dtheta', mu=modeled_variance, tau=1./dtheta_variance_error**2, a=0, \
                              value=dtheta_variance, observed=True)
 
-    modelDict['ds'] = ds
-    modelDict['var_dtheta'] = var_dtheta
-
     #######################
     ### Returning Model ###
     #######################
 
-    return modelDict
+    return locals()
 
 class chirality_pymc_model:
-    def __init__(self, group_on_name, group_on_value, lenToFilter=150):
-        self.currentGrowth, self.av_chir, self.av_diff = setup_analysis(group_on_name, group_on_value, lenToFilter)
+    def __init__(self, group_on_name, group_on_value, **kwargs):
+        self.group_on_name = group_on_name
+        self.group_on_value = group_on_value
+
+        self.currentGrowth, self.av_chir, self.av_diff = setup_analysis(group_on_name, group_on_value, **kwargs)
         self.model = make_model_constantRo(self.currentGrowth, self.av_chir, self.av_diff)
         self.M = pymc.MCMC(self.model, db='pickle', dbname=group_on_name + '_' + str(group_on_value)+'.pkl')
         self.N = pymc.NormApprox(self.model)
 
-    def sample(self, num=10**5, burn=10*4, thin=10):
-        self.M.sample(num, burn, thin)
 
-    def saveResults(self):
-        self.M.db.close()
-
-    def fitNorm(self):
-        self.N.fit(iterlim=50000)
