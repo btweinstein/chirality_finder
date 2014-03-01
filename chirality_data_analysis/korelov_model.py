@@ -190,15 +190,17 @@ def make_model_constantRo(current_group, av_currentChiralityData, av_currentDiff
 
     # Estimating the error of the variance
     numSamples = av_currentDiffusionData['rotated_righthanded', 'len'].values
-    dtheta_variance_error = np.sqrt(2*np.sqrt(dtheta_variance)**4/(numSamples - 1))
+    #dtheta_variance_error = np.sqrt(2*np.sqrt(dtheta_variance)**4/(numSamples - 1))
 
-    ds = pymc.Uniform('ds', lower=10.**-2, upper=10**2, value=10.**0.)
+    ds = pymc.Uniform('ds', lower=10.**-2, upper=10**2, value=1.)
 
     @pymc.deterministic
     def modeled_variance(vpar=vpar, ds=ds, dif_xaxis=dif_xaxis):
         return (2*ds/vpar)*dif_xaxis
 
-    var_dtheta = pymc.TruncatedNormal('var_dtheta', mu=modeled_variance, tau=1./dtheta_variance_error**2, a=0, \
+    dtheta_variance_std = pymc.Uniform('dtheta_variance_error', lower=10.**-12, upper=1)
+
+    var_dtheta = pymc.TruncatedNormal('var_dtheta', mu=modeled_variance, tau=1./dtheta_variance_std**2, a=0, \
                              value=dtheta_variance, observed=True)
 
     #######################
