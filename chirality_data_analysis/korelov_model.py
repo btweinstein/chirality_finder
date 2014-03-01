@@ -50,9 +50,6 @@ def setup_analysis(group_on_name, group_on_value, lenToFilterChir = 0, lenToFilt
 
     plot_diffusion(av_currentDiffusionData)
 
-    # Plot number of samples vs. radius...for both scales!
-    plot_num_elements(av_currentDiffusionData, av_currentChiralityData)
-
     print
     print 'Done setting up!'
 
@@ -90,6 +87,20 @@ def plot_av_chirality(av_currentChiralityData):
     plt.ylabel('Average d$\\theta$')
     plt.title('Average d$\\theta$ vs. Normalized Radius')
 
+    #######################
+    ## Number of Points ###
+    #######################
+
+    x = av_currentChiralityData['log_r_div_ri', 'mean'].values
+    y = av_currentChiralityData['rotated_righthanded', 'len'].values
+
+    plt.figure()
+    plt.plot(x , y, '+-')
+
+    plt.xlabel('Average $\ln{(r/r_i)}$')
+    plt.ylabel('Number of Samples')
+    plt.title('Number of Samples vs. scaled x-axis (Chirality)')
+
 def bin_diffusion(currentChiralityData, numDiffBins):
     min_x = currentChiralityData['1divri_minus_1divr_1divum'].min() - 10.**-6.
     max_x = currentChiralityData['1divri_minus_1divr_1divum'].max() + 10.**-6.
@@ -119,11 +130,9 @@ def plot_diffusion(av_currentDiffusionData):
     plt.ylabel('Var(d$\\theta)$')
     plt.title('Variance of d$\\theta$ vs. Normalized Radius')
 
-def plot_num_elements(av_currentDiffusionData, av_currentChiralityData):
-
-    ######################
-    ## Diffusion Scale ###
-    ######################
+    ########################
+    ### Number of Points ###
+    ########################
 
     x = av_currentDiffusionData['1divri_minus_1divr_1divum', 'mean'].values
     y = av_currentDiffusionData['rotated_righthanded', 'len'].values
@@ -134,20 +143,6 @@ def plot_num_elements(av_currentDiffusionData, av_currentChiralityData):
     plt.xlabel('Average $1/r_i - 1/r$')
     plt.ylabel('Number of Samples')
     plt.title('Number of Samples vs. scaled x-axis (Diffusion)')
-
-    ######################
-    ## Chirality Scale ###
-    ######################
-
-    x = av_currentChiralityData['log_r_div_ri', 'mean'].values
-    y = av_currentChiralityData['rotated_righthanded', 'len'].values
-
-    plt.figure()
-    plt.plot(x , y, '+-')
-
-    plt.xlabel('Average $\ln{(r/r_i)}$')
-    plt.ylabel('Number of Samples')
-    plt.title('Number of Samples vs. scaled x-axis (Chirality)')
 
 ########### Creating Models #############
 
