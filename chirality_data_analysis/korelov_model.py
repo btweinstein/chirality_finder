@@ -214,6 +214,12 @@ def make_model_constantRo(current_group, av_currentChiralityData, av_currentDiff
 
 class chirality_pymc_model:
     def __init__(self, group_on_name, group_on_value, **kwargs):
+        '''Keyword arguments:
+        lenToFilterChir: Below what number of samples a bin should be thrown out for chirality
+        lenToFilterDiff: Below what number of samples a bin should be thrown out for diffusion
+        numChirBins: Number of chirality bins
+        numDiffBins: Number of diffusion bins
+        '''
         self.group_on_name = group_on_name
         self.group_on_value = group_on_value
 
