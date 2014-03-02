@@ -10,6 +10,9 @@ chiralityData = None
 
 ########### Setting up the Analysis ###############
 
+def getNumUnique(x):
+        return len(np.unique(x))
+
 def setup_analysis(group_on_name, group_on_value, lenToFilterChir = 0, lenToFilterDiff=0, numChirBins=50, numDiffBins=50):
     '''The following inputs MUST be in your pandas matrices or else everything will crash.
 
@@ -29,13 +32,13 @@ def setup_analysis(group_on_name, group_on_value, lenToFilterChir = 0, lenToFilt
 
     # Get the desired data
     plate_groups = growthData.groupby([group_on_name])
-    current_group = plate_groups.get_group(group_on_value)
+    current_growth_group = plate_groups.get_group(group_on_value)
 
     currentChiralityData = chiralityData[(chiralityData[group_on_name] == group_on_value)]
     print
     binnedChiralityData = bin_chirality(currentChiralityData, numChirBins)
 
-    av_currentChiralityData = binnedChiralityData.agg([np.mean, np.std, np.var, len])
+    av_currentChiralityData = binnedChiralityData.agg([np.mean, np.std, np.var, len, getNumUnique])
     # The key here is to filter out the pieces that have too few elements, i.e.
     # those with less than 150 or so.
     av_currentChiralityData = av_currentChiralityData[av_currentChiralityData['rotated_righthanded', 'len'] > lenToFilterChir]
@@ -44,7 +47,7 @@ def setup_analysis(group_on_name, group_on_value, lenToFilterChir = 0, lenToFilt
 
     print
     binnedDiffusion = bin_diffusion(currentChiralityData, numDiffBins)
-    av_currentDiffusionData = binnedDiffusion.agg([np.mean, np.std, np.var, len])
+    av_currentDiffusionData = binnedDiffusion.agg([np.mean, np.std, np.var, len, getNumUnique])
     av_currentDiffusionData = av_currentDiffusionData[av_currentDiffusionData['rotated_righthanded', 'len'] > lenToFilterDiff]
 
 
@@ -55,21 +58,22 @@ def setup_analysis(group_on_name, group_on_value, lenToFilterChir = 0, lenToFilt
 
     plt.show()
 
-    return current_group, av_currentChiralityData, av_currentDiffusionData
+    return currentChiralityData, current_growth_group, av_currentChiralityData, av_currentDiffusionData
 
-def bin_chirality(currentChiralityData, numChirBins):
+def bin_chirality(currentChiralityData, numChirBins, verbose=True):
 
     min_x = currentChiralityData['log_r_div_ri'].min() - 10.**-6.
     max_x = currentChiralityData['log_r_div_ri'].max() + 10.**-6.
     numBins = numChirBins
 
-    print 'numBins for chirality:' , numBins
-    print 'Min log(r/ri):', min_x
-    print 'Max log(r/ri):', max_x
+    if verbose:
+        print 'numBins for chirality:' , numBins
+        print 'Min log(r/ri):', min_x
+        print 'Max log(r/ri):', max_x
 
     bins, binsize = np.linspace(min_x, max_x, numBins, retstep=True)
 
-    print 'Dimensionless Binsize for log(r/ri):' , binsize
+    if verbose: print 'Dimensionless Binsize for log(r/ri):' , binsize
 
     group_chlor = currentChiralityData.groupby([pd.cut(currentChiralityData['log_r_div_ri'], bins), 'chlor'])
 
@@ -101,18 +105,19 @@ def plot_av_chirality(av_currentChiralityData):
     plt.ylabel('Number of Samples')
     plt.title('Number of Samples vs. scaled x-axis (Chirality)')
 
-def bin_diffusion(currentChiralityData, numDiffBins):
+def bin_diffusion(currentChiralityData, numDiffBins, verbose=True):
     min_x = currentChiralityData['1divri_minus_1divr_1divum'].min() - 10.**-6.
     max_x = currentChiralityData['1divri_minus_1divr_1divum'].max() + 10.**-6.
     numBins = numDiffBins
 
-    print 'Numbins for diffusion:' , numBins
-    print 'Min 1/ri - 1/r (1/um):', min_x
-    print 'Max 1/ri - 1/r (1/um):', max_x
+    if verbose:
+        print 'Numbins for diffusion:' , numBins
+        print 'Min 1/ri - 1/r (1/um):', min_x
+        print 'Max 1/ri - 1/r (1/um):', max_x
 
     bins, binsize = np.linspace(min_x, max_x, numBins, retstep=True)
 
-    print 'Dimensionless Binsize for 1/ri - 1/r:' , binsize
+    if verbose: print 'Dimensionless Binsize for 1/ri - 1/r:' , binsize
 
     group_diff = currentChiralityData.groupby([pd.cut(currentChiralityData['1divri_minus_1divr_1divum'], bins), 'chlor'])
 
@@ -219,10 +224,7 @@ class chirality_pymc_model:
         '''
         self.group_on_name = group_on_name
         self.group_on_value = group_on_value
-
-        self.currentGrowth, self.av_chir, self.av_diff = setup_analysis(group_on_name, group_on_value, **kwargs)
+        self.currentChiralityData, self.currentGrowth, self.av_chir, self.av_diff = setup_analysis(group_on_name, group_on_value, **kwargs)
         self.model = make_model_constantRo(self.currentGrowth, self.av_chir, self.av_diff)
         self.M = pymc.MCMC(self.model, db='pickle', dbname=group_on_name + '_' + str(group_on_value)+'.pkl')
         self.N = pymc.MAP(self.model)
-
-
