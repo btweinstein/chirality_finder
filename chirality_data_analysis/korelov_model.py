@@ -13,11 +13,6 @@ chiralityData = None
 def getNumUnique(x):
         return len(np.unique(x))
 
-def getTotalSectors(x):
-    miniGroup = x.groupby('plateID')
-    means = miniGroup.agg(np.mean)
-    return np.sum(means['numSectors'])
-
 # A list of everything you apply to the data
 aggList = [np.mean, np.std, np.var, len]
 
@@ -29,8 +24,7 @@ def setup_analysis(group_on_name, group_on_value, lenToFilterChir = 0, lenToFilt
     2. 'log_r_div_ri': The dimensionless radius desired
     3. '1divri_minus_1divr_1divum' : A different scaled radius
     4. 'plateID': All images taken from the same plate should have the same integer ID
-    5. 'numSectors' : The number of sectors of a single colony at a given physical radius
-    6. Column that you will separate on, i.e. group_on_name
+    5. Column that you will separate on, i.e. group_on_name
 
     Growth Data:
     1. 'colony_radius_um': The colony radius in um
@@ -86,14 +80,12 @@ def binChiralityData(currentChiralityData, numChirBins, bin_on, lenToFilter = 15
     sectorData = sectorData.rename(columns={bin_on : 'bins',
                                            bin_on + '_mean' : bin_on})
 
-    totalChirSectors = getTotalSectors(sectorData)
-
     av_currentChiralityData = sectorData.groupby(['bins']).agg(aggList)
-
-    av_currentChiralityData['total_numSectors', 'mean'] = totalChirSectors
 
     # The key here is to filter out the pieces that have too few elements
     av_currentChiralityData = av_currentChiralityData[av_currentChiralityData['rotated_righthanded', 'len'] > lenToFilter]
+
+    av_currentChiralityData = av_currentChiralityData.sort([(bin_on, 'mean')])
 
     return av_currentChiralityData
 
@@ -103,7 +95,7 @@ def plot_av_chirality(av_currentChiralityData):
     yerr = av_currentChiralityData['rotated_righthanded', 'std'].values
 
     plt.figure()
-    plt.plot(x , y, '+-')
+    plt.plot(x , y, 'o-')
     plt.fill_between(x, y - yerr, y + yerr, alpha=0.3, antialiased=True)
     plt.xlabel('Average $\ln{(r/r_i)}$')
     plt.ylabel('Average d$\\theta$')
@@ -117,7 +109,7 @@ def plot_av_chirality(av_currentChiralityData):
     y = av_currentChiralityData['rotated_righthanded', 'len'].values
 
     plt.figure()
-    plt.plot(x , y, '+-')
+    plt.plot(x , y, 'o-')
 
     plt.xlabel('Average $\ln{(r/r_i)}$')
     plt.ylabel('Number of Samples')
@@ -129,7 +121,7 @@ def plot_diffusion(av_currentDiffusionData):
     y = av_currentDiffusionData['rotated_righthanded', 'var'].values
 
     plt.figure()
-    plt.plot(x , y, '+-')
+    plt.plot(x , y, 'o-')
 
     plt.xlabel('Average $1/r_i - 1/r$')
     plt.ylabel('Var(d$\\theta)$')
@@ -143,7 +135,7 @@ def plot_diffusion(av_currentDiffusionData):
     y = av_currentDiffusionData['rotated_righthanded', 'len'].values
 
     plt.figure()
-    plt.plot(x , y, '+-')
+    plt.plot(x , y, 'o-')
 
     plt.xlabel('Average $1/r_i - 1/r$')
     plt.ylabel('Number of Samples')
