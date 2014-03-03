@@ -8,10 +8,20 @@ import matplotlib.pyplot as plt
 growthData = None
 chiralityData = None
 
+
+
 ########### Setting up the Analysis ###############
 
 def getNumUnique(x):
         return len(np.unique(x))
+
+def getTotalSectors(x):
+    miniGroup = x.groupby('plateID')
+    means = miniGroup.agg(np.mean)
+    return np.sum(means['numSectors'])
+
+# A list of everything you apply to the data
+aggList = [np.mean, np.std, np.var, len]
 
 def setup_analysis(group_on_name, group_on_value, lenToFilterChir = 0, lenToFilterDiff=0, numChirBins=50, numDiffBins=50):
     '''The following inputs MUST be in your pandas matrices or else everything will crash.
@@ -20,12 +30,15 @@ def setup_analysis(group_on_name, group_on_value, lenToFilterChir = 0, lenToFilt
     1. 'rotated_righthanded': \Delta \theta in a right handed coordinate system
     2. 'log_r_div_ri': The dimensionless radius desired
     3. '1divri_minus_1divr_1divum' : A different scaled radius
-    4. Column that you will separate on, i.e. group_on_name
+    4. 'plateID': All images taken from the same plate should have the same integer ID
+    5. 'numSectors' : The number of sectors of a single colony at a given physical radius
+    6. Column that you will separate on, i.e. group_on_name
 
     Growth Data:
     1. 'colony_radius_um': The colony radius in um
     2. 'timeDelta': The elapsed time in seconds since innoculation
-    3. Column that you will separate on, i.e. group_on_name
+    3. 'plateID': All images taken from the same plate should have the same integer ID
+    4. Column that you will separate on, i.e. group_on_name
     '''
 
     print 'Setting up the simulation for' , group_on_name , '=' , group_on_value , '...'
@@ -37,8 +50,10 @@ def setup_analysis(group_on_name, group_on_value, lenToFilterChir = 0, lenToFilt
     currentChiralityData = chiralityData[(chiralityData[group_on_name] == group_on_value)]
     print
     binnedChiralityData = bin_chirality(currentChiralityData, numChirBins)
+    totalChirSectors = binnedChiralityData.apply(getTotalSectors)
+    av_currentChiralityData = binnedChiralityData.agg(aggList)
+    av_currentChiralityData['total_numSectors', 'mean'] = totalChirSectors
 
-    av_currentChiralityData = binnedChiralityData.agg([np.mean, np.std, np.var, len, getNumUnique])
     # The key here is to filter out the pieces that have too few elements, i.e.
     # those with less than 150 or so.
     av_currentChiralityData = av_currentChiralityData[av_currentChiralityData['rotated_righthanded', 'len'] > lenToFilterChir]
@@ -47,7 +62,10 @@ def setup_analysis(group_on_name, group_on_value, lenToFilterChir = 0, lenToFilt
 
     print
     binnedDiffusion = bin_diffusion(currentChiralityData, numDiffBins)
-    av_currentDiffusionData = binnedDiffusion.agg([np.mean, np.std, np.var, len, getNumUnique])
+    totalDiffSectors = binnedDiffusion.apply(getTotalSectors)
+    av_currentDiffusionData = binnedDiffusion.agg(aggList)
+    av_currentDiffusionData['total_numSectors', 'mean'] = totalDiffSectors
+
     av_currentDiffusionData = av_currentDiffusionData[av_currentDiffusionData['rotated_righthanded', 'len'] > lenToFilterDiff]
 
 
