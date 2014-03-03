@@ -8,8 +8,6 @@ import matplotlib.pyplot as plt
 growthData = None
 chiralityData = None
 
-
-
 ########### Setting up the Analysis ###############
 
 def getNumUnique(x):
@@ -49,26 +47,12 @@ def setup_analysis(group_on_name, group_on_value, lenToFilterChir = 0, lenToFilt
 
     currentChiralityData = chiralityData[(chiralityData[group_on_name] == group_on_value)]
     print
-    binnedChiralityData = bin_chirality(currentChiralityData, numChirBins)
-    totalChirSectors = binnedChiralityData.apply(getTotalSectors)
-    av_currentChiralityData = binnedChiralityData.agg(aggList)
-    av_currentChiralityData['total_numSectors', 'mean'] = totalChirSectors
 
-    # The key here is to filter out the pieces that have too few elements, i.e.
-    # those with less than 150 or so.
-    av_currentChiralityData = av_currentChiralityData[av_currentChiralityData['rotated_righthanded', 'len'] > lenToFilterChir]
-
+    av_currentChiralityData = binChiralityData(currentChiralityData, numChirBins, 'log_r_div_ri', lenToFilter = lenToFilterChir)
     plot_av_chirality(av_currentChiralityData)
 
     print
-    binnedDiffusion = bin_diffusion(currentChiralityData, numDiffBins)
-    totalDiffSectors = binnedDiffusion.apply(getTotalSectors)
-    av_currentDiffusionData = binnedDiffusion.agg(aggList)
-    av_currentDiffusionData['total_numSectors', 'mean'] = totalDiffSectors
-
-    av_currentDiffusionData = av_currentDiffusionData[av_currentDiffusionData['rotated_righthanded', 'len'] > lenToFilterDiff]
-
-
+    av_currentDiffusionData = binChiralityData(currentChiralityData, numDiffBins, '1divri_minus_1divr_1divum', lenToFilter = lenToFilterDiff)
     plot_diffusion(av_currentDiffusionData)
 
     print
@@ -78,24 +62,40 @@ def setup_analysis(group_on_name, group_on_value, lenToFilterChir = 0, lenToFilt
 
     return currentChiralityData, current_growth_group, av_currentChiralityData, av_currentDiffusionData
 
-def bin_chirality(currentChiralityData, numChirBins, verbose=True):
+def binChiralityData(currentChiralityData, numChirBins, bin_on, lenToFilter = 150, verbose=True):
+    '''Returns the average data per sector in each plate binned over the desired radius.'''
 
-    min_x = currentChiralityData['log_r_div_ri'].min() - 10.**-6.
-    max_x = currentChiralityData['log_r_div_ri'].max() + 10.**-6.
+    min_x = currentChiralityData[bin_on].min() - 10.**-6.
+    max_x = currentChiralityData[bin_on].max() + 10.**-6.
     numBins = numChirBins
 
     if verbose:
-        print 'numBins for chirality:' , numBins
-        print 'Min log(r/ri):', min_x
-        print 'Max log(r/ri):', max_x
+        print 'numBins for ', bin_on, ':' , numBins
+        print 'Min ', bin_on, ':', min_x
+        print 'Max ', bin_on, ':', max_x
 
     bins, binsize = np.linspace(min_x, max_x, numBins, retstep=True)
 
-    if verbose: print 'Dimensionless Binsize for log(r/ri):' , binsize
+    if verbose: print 'Dimensionless Binsize for ', bin_on, ':' , binsize
 
-    group_chlor = currentChiralityData.groupby([pd.cut(currentChiralityData['log_r_div_ri'], bins), 'chlor'])
+    # Group by sector! Specified by a label and a plate
+    sector_groups = currentChiralityData.groupby([pd.cut(currentChiralityData[bin_on], bins), 'plateID', 'label'])
+    sectorData = sector_groups.agg(np.mean)
+    sectorData = sectorData.rename(columns={bin_on : bin_on + '_mean'})
+    sectorData = sectorData.reset_index()
+    sectorData = sectorData.rename(columns={bin_on : 'bins',
+                                           bin_on + '_mean' : bin_on})
 
-    return group_chlor
+    totalChirSectors = getTotalSectors(sectorData)
+
+    av_currentChiralityData = sectorData.groupby(['bins']).agg(aggList)
+
+    av_currentChiralityData['total_numSectors', 'mean'] = totalChirSectors
+
+    # The key here is to filter out the pieces that have too few elements
+    av_currentChiralityData = av_currentChiralityData[av_currentChiralityData['rotated_righthanded', 'len'] > lenToFilter]
+
+    return av_currentChiralityData
 
 def plot_av_chirality(av_currentChiralityData):
     x = av_currentChiralityData['log_r_div_ri', 'mean'].values
@@ -122,24 +122,6 @@ def plot_av_chirality(av_currentChiralityData):
     plt.xlabel('Average $\ln{(r/r_i)}$')
     plt.ylabel('Number of Samples')
     plt.title('Number of Samples vs. scaled x-axis (Chirality)')
-
-def bin_diffusion(currentChiralityData, numDiffBins, verbose=True):
-    min_x = currentChiralityData['1divri_minus_1divr_1divum'].min() - 10.**-6.
-    max_x = currentChiralityData['1divri_minus_1divr_1divum'].max() + 10.**-6.
-    numBins = numDiffBins
-
-    if verbose:
-        print 'Numbins for diffusion:' , numBins
-        print 'Min 1/ri - 1/r (1/um):', min_x
-        print 'Max 1/ri - 1/r (1/um):', max_x
-
-    bins, binsize = np.linspace(min_x, max_x, numBins, retstep=True)
-
-    if verbose: print 'Dimensionless Binsize for 1/ri - 1/r:' , binsize
-
-    group_diff = currentChiralityData.groupby([pd.cut(currentChiralityData['1divri_minus_1divr_1divum'], bins), 'chlor'])
-
-    return group_diff
 
 def plot_diffusion(av_currentDiffusionData):
 
