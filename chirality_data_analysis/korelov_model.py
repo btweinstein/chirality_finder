@@ -56,7 +56,7 @@ def setup_analysis(group_on_name, group_on_value, lenToFilterChir = 0, lenToFilt
 
     return currentChiralityData, current_growth_group, av_currentChiralityData, av_currentDiffusionData
 
-def binChiralityData(currentChiralityData, numChirBins, bin_on, lenToFilter = 150, verbose=True):
+def binChiralityData(currentChiralityData, numChirBins, bin_on, lenToFilter = 0, verbose=True):
     '''Returns the average data per sector in each plate binned over the desired radius.'''
 
     min_x = currentChiralityData[bin_on].min() - 10.**-6.
