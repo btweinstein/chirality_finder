@@ -69,6 +69,47 @@ def getChiralityData(labels, center):
 
     return chiralityData
 
+def recalculate_by_mean_position(data):
+    '''Recalculates all position-dependent information based on the mean dx and dy.
+
+    Input: Pass in a mulitindex with (dx, mean) and (dy, mean).
+    Output: All information that depends on dx and dy are redefined appropriately. '''
+
+    # Redefine r and theta, the most simple
+    data['r'] = np.sqrt(data['dx']**2. + data['dy']**2.)
+    data['theta'] = np.arctan2(data['dy'], data['dx'])
+
+    # We need to rotate each label individually!
+    def relative_axes_label(x):
+        minRadiusIndex = x['r'].idxmin()
+        minRadiusRow = x.ix[minRadiusIndex]
+        minRadiusTheta = minRadiusRow['theta']
+        x['rotated'] = x['theta'] - minRadiusTheta
+        return x
+
+    data = data.groupby(['plateID', 'label']).apply(relative_axes_label)
+
+    data['rotated'][data['rotated'] < -np.pi] = 2*np.pi+ data['rotated']
+    data['rotated'][data['rotated'] > np.pi] = -2*np.pi + data['rotated']
+    data['rotated_righthanded'] = -1. * data['rotated']
+
+    data['r_mm'] = data['r'] * data['mm_per_pixel']
+
+    def set_minimum_r(x):
+        minRadius = np.min(x['r_mm'])
+        x['r_mm_min'] = minRadius
+        return x
+
+    data= data.groupby(['plateID', 'label']).apply(set_minimum_r)
+
+    data['r_um'] = data['r_mm']*10.**3.
+    data['r_um_min'] = data['r_mm_min']*10.**3
+
+    data['log_r_div_ri'] = np.log(data['r_um']/data['r_um_min'])
+    data['1divri_minus_1divr_1divum'] = (1/data['r_um_min']) - (1/data['r_um'])
+
+    return data
+
 def getNonzeroCoordinates(binary):
     """Given a binary image return the x,y coordinates with nonzero values.
     We use IMAGE COORDINATES here, i.e. y increases downwardly.

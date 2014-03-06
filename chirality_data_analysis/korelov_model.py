@@ -5,6 +5,9 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+import data_analysis
+
+
 growthData = None
 chiralityData = None
 
@@ -80,12 +83,17 @@ def binChiralityData(currentChiralityData, numChirBins, bin_on, lenToFilter = 0,
     sectorData = sectorData.rename(columns={bin_on : 'bins',
                                            bin_on + '_mean' : bin_on})
 
+    # The sector data must now be corrected; the mean dx and dy should be used to recalculate all other quantities
+    sectorData = data_analysis.recalculate_by_mean_position(sectorData)
+
     av_currentChiralityData = sectorData.groupby(['bins']).agg(aggList)
 
     # The key here is to filter out the pieces that have too few elements
     av_currentChiralityData = av_currentChiralityData[av_currentChiralityData['rotated_righthanded', 'len'] > lenToFilter]
 
     av_currentChiralityData = av_currentChiralityData.sort([(bin_on, 'mean')])
+
+    ## At this point we should actually recalculate all positions/theta based on the mean position, i.e. dx and dy
 
     return av_currentChiralityData
 
@@ -175,6 +183,8 @@ def make_model_constantRo(current_group, av_currentChiralityData, av_currentDiff
     dthetaDataChir = av_currentChiralityData['rotated_righthanded', 'mean'].values
     dthetaStdChir = av_currentChiralityData['rotated_righthanded', 'std'].values
     dthetaTauChir = 1.0/dthetaStdChir**2
+
+    dthetaTauChir[0] = 10**50 # You can't have tau be infinity, although it really is in this case
 
     dtheta = pymc.Normal('dtheta', mu = modeled_dtheta, tau=dthetaTauChir, value=dthetaDataChir, observed=True)
 
