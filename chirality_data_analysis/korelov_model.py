@@ -4,6 +4,8 @@ import pymc
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import patsy as pat
+import statsmodels.api as sm
 
 import data_analysis
 
@@ -169,7 +171,6 @@ def make_model_constantRo(current_group, av_currentChiralityData, av_currentDiff
                              value=current_group['colony_radius_um'].values, observed=True)
 
     #######################
-
     ### Chirality Piece ###
     #######################
 
@@ -231,3 +232,69 @@ class chirality_pymc_model:
         self.model = make_model_constantRo(self.currentGrowth, self.av_chir, self.av_diff)
         self.M = pymc.MCMC(self.model, db='pickle', dbname=group_on_name + '_' + str(group_on_value)+'.pkl')
         self.N = pymc.MAP(self.model)
+
+        self.Ro_results_freq= None
+        self.dtheta_results_freq = None
+        self.variance_results_freq = None
+
+    def frequentist_fit(self):
+
+        print 'Fitting using frequentist methods...'
+
+        ##########################
+        ##### Fit vparallel ######
+        ##########################
+
+        y, X = pat.dmatrices('colony_radius_um ~ timeDelta', data=self.currentGrowth, return_type='dataframe')
+        radiusSigma = (200.*10.**3) * np.ones_like(y)
+        Ro_model = sm.WLS(y, X, weights=1/radiusSigma**2)
+        self.Ro_results_freq = Ro_model.fit()
+
+        ###########################
+        ###  Fit dtheta ##########
+        ##########################
+        log_r_ri = self.av_chir['log_r_div_ri', 'mean'].values
+
+        dthetaDataChir = self.av_chir['rotated_righthanded', 'mean'].values
+        dthetaStdChir = self.av_chir['rotated_righthanded', 'std'].values
+        dthetaTauChir = 1.0/dthetaStdChir**2
+
+        # The first point error is technically 0 right now...so how do we include it?
+        # Should we include it? We should include it so the model recognizes that it is
+        # a real point. Actually, let's just drop it, it is probably easier.
+
+        dthetaDataChir = dthetaDataChir[1:]
+        log_r_ri = log_r_ri[1:]
+        dthetaTauChir = dthetaTauChir[1:]
+
+        # No intercept!
+        y, X = pat.dmatrices('dtheta ~ 0 + log_r_ri', data={'dtheta' : dthetaDataChir,
+                                                              'log_r_ri' : log_r_ri})
+        dtheta_model = sm.WLS(y, X, weights=dthetaTauChir)
+        self.dtheta_results_freq = dtheta_model.fit()
+
+        ###################
+        ### Fit Variance ##
+        ###################
+
+        dif_xaxis = self.av_diff['1divri_minus_1divr_1divum', 'mean'].values
+        dtheta_variance = self.av_diff['rotated_righthanded', 'var'].values
+
+        # Estimating the error of the variance
+        numSamples = self.av_diff['rotated_righthanded', 'len'].values
+        dtheta_variance_error = np.sqrt((2*dtheta_variance**2)/(numSamples - 1))
+
+        # Drop the first point as it has zero variance with infinite accuracy. It is
+        # essentially pathological.
+
+        dtheta_variance = dtheta_variance[1:]
+        dif_xaxis = dif_xaxis[1:]
+        dtheta_variance_error = dtheta_variance_error[1:]
+
+        y, X = pat.dmatrices('dtheta_variance ~ 0 + dif_xaxis', data={'dtheta_variance' : dtheta_variance,
+                                                                      'dif_xaxis' : dif_xaxis})
+
+        variance_model = sm.WLS(y, X, weights=1./dtheta_variance_error**2)
+        self.variance_results_freq = variance_model.fit()
+
+        print 'Done fitting!'
