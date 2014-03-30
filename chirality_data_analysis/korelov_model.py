@@ -237,15 +237,21 @@ class chirality_pymc_model:
         self.dtheta_results_freq = None
         self.variance_results_freq = None
 
-    def frequentist_fit(self):
-
-        print 'Fitting using frequentist methods...'
+    def frequentist_fit(self, currentGrowth = None, av_chir = None, av_diff = None):
+        if currentGrowth is None:
+            currentGrowth = self.currentGrowth
+        if av_chir is None:
+            av_chir = self.av_chir
+        if av_diff is None:
+            av_diff = self.av_diff
 
         ##########################
         ##### Fit vparallel ######
         ##########################
 
-        y, X = pat.dmatrices('colony_radius_um ~ timeDelta', data=self.currentGrowth, return_type='dataframe')
+        y, X = pat.dmatrices('colony_radius_um ~ timeDelta', data=currentGrowth,
+                             return_type='dataframe')
+
         radiusSigma = (200.*10.**3) * np.ones_like(y)
         Ro_model = sm.WLS(y, X, weights=1/radiusSigma**2)
         self.Ro_results_freq = Ro_model.fit()
@@ -253,23 +259,29 @@ class chirality_pymc_model:
         ###########################
         ###  Fit dtheta ##########
         ##########################
-        log_r_ri = self.av_chir['log_r_div_ri', 'mean'].values
+        log_r_ri = av_chir['log_r_div_ri', 'mean'].values
 
-        dthetaDataChir = self.av_chir['rotated_righthanded', 'mean'].values
-        dthetaStdChir = self.av_chir['rotated_righthanded', 'std'].values
+        dthetaDataChir = av_chir['rotated_righthanded', 'mean'].values
+        dthetaStdChir = av_chir['rotated_righthanded', 'std'].values
         dthetaTauChir = 1.0/dthetaStdChir**2
 
         # The first point error is technically 0 right now...so how do we include it?
         # Should we include it? We should include it so the model recognizes that it is
         # a real point. Actually, let's just drop it, it is probably easier.
 
-        dthetaDataChir = dthetaDataChir[1:]
-        log_r_ri = log_r_ri[1:]
-        dthetaTauChir = dthetaTauChir[1:]
+        # If any point with tau=infty is here, we must kill it.
+
+        points = np.isfinite(dthetaTauChir)
+
+        dthetaDataChir = dthetaDataChir[points]
+        log_r_ri = log_r_ri[points]
+        dthetaTauChir = dthetaTauChir[points]
 
         # No intercept!
         y, X = pat.dmatrices('dtheta ~ 0 + log_r_ri', data={'dtheta' : dthetaDataChir,
-                                                              'log_r_ri' : log_r_ri})
+                                                              'log_r_ri' : log_r_ri},
+                             return_type='dataframe')
+
         dtheta_model = sm.WLS(y, X, weights=dthetaTauChir)
         self.dtheta_results_freq = dtheta_model.fit()
 
@@ -277,27 +289,74 @@ class chirality_pymc_model:
         ### Fit Variance ##
         ###################
 
-        dif_xaxis = self.av_diff['1divri_minus_1divr_1divum', 'mean'].values
-        dtheta_variance = self.av_diff['rotated_righthanded', 'var'].values
+        dif_xaxis = av_diff['1divri_minus_1divr_1divum', 'mean'].values
+        dtheta_variance = av_diff['rotated_righthanded', 'var'].values
 
         # Estimating the error of the variance
-        numSamples = self.av_diff['rotated_righthanded', 'len'].values
+        numSamples = av_diff['rotated_righthanded', 'len'].values
         dtheta_variance_error = np.sqrt((2*dtheta_variance**2)/(numSamples - 1))
+        dtheta_variance_tau = 1/dtheta_variance_error**2
 
         # Drop the first point as it has zero variance with infinite accuracy. It is
         # essentially pathological.
 
-        dtheta_variance = dtheta_variance[1:]
-        dif_xaxis = dif_xaxis[1:]
-        dtheta_variance_error = dtheta_variance_error[1:]
+
+        points = np.isfinite(dtheta_variance_tau)
+
+        dtheta_variance = dtheta_variance[points]
+        dif_xaxis = dif_xaxis[points]
+        dtheta_variance_tau = dtheta_variance_tau[points]
 
         y, X = pat.dmatrices('dtheta_variance ~ 0 + dif_xaxis', data={'dtheta_variance' : dtheta_variance,
-                                                                      'dif_xaxis' : dif_xaxis})
+                                                                      'dif_xaxis' : dif_xaxis},
+                             return_type='dataframe')
 
-        variance_model = sm.WLS(y, X, weights=1./dtheta_variance_error**2)
+        variance_model = sm.WLS(y, X, weights=dtheta_variance_tau)
         self.variance_results_freq = variance_model.fit()
 
-        print 'Done fitting!'
-
     def get_params_frequentist(self):
-        print 'waka'
+        # Useful in bootstrapping estimate of error
+        vpar = self.Ro_results_freq.params['timeDelta']
+        vperp_div_vpar = self.dtheta_results_freq.params['log_r_ri']
+        two_Ds_vpar = self.variance_results_freq.params['dif_xaxis']
+
+        vperp = vperp_div_vpar * vpar
+        Ds = (1./2.) * vpar * two_Ds_vpar
+
+        return {'vpar' : vpar, 'vperp' : vperp, 'Ds' : Ds}
+
+    @staticmethod
+    def resample_df(df):
+        rows = np.random.choice(df.index, len(df.index))
+        return df.ix[rows]
+
+    def frequentist_bootstrap(self, numIterations, plot=False):
+        # This is a little silly as we calculate the error AFTER we have selected the sectors
+        # and averaged them. We probably want to bootstrap SELECTING the sectors. Right?
+        # It is worth figuring out regardless, assuming it does not take too long.
+
+        vpar = np.empty(numIterations)
+        vperp = np.empty(numIterations)
+        Ds = np.empty(numIterations)
+
+        for i in range(numIterations):
+            # Sample from the data appropriately
+            currentGrowth = self.resample_df(self.currentGrowth)
+            if plot: plt.plot(currentGrowth['timeDelta'], currentGrowth['colony_radius_um'], 'o')
+
+            if plot: plt.figure()
+            av_chir = self.resample_df(self.av_chir)
+            if plot: plt.plot(av_chir['log_r_div_ri', 'mean'], av_chir['rotated_righthanded', 'mean'], 'o')
+
+            if plot: plt.figure()
+            av_diff = self.resample_df(self.av_diff)
+            if plot: plt.plot(av_diff['1divri_minus_1divr_1divum', 'mean'], av_diff['rotated_righthanded', 'var'], 'o')
+
+            self.frequentist_fit(currentGrowth=currentGrowth, av_chir= av_chir, av_diff=av_diff)
+            params = self.get_params_frequentist()
+
+            vpar[i] = params['vpar']
+            vperp[i] = params['vperp']
+            Ds[i] = params['Ds']
+
+        return pd.DataFrame({'vpar' : vpar, 'vperp' : vperp, 'Ds' : Ds})
