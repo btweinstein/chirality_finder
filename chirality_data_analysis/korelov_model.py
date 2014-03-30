@@ -298,3 +298,6 @@ class chirality_pymc_model:
         self.variance_results_freq = variance_model.fit()
 
         print 'Done fitting!'
+
+    def get_params_frequentist(self):
+        print 'waka'
