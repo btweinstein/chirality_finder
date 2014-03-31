@@ -153,22 +153,40 @@ def plot_diffusion(av_currentDiffusionData):
 
 ########### Creating Models #############
 
+def create_scale_invariant(name, lower = 10.**-20, upper=1, value = 10.**-5):
+
+    @pymc.stochastic(name=name)
+    def scale_invariant(value=value, lower=lower, upper=upper):
+
+        def logp(value=value, lower=lower, upper=upper):
+            if (lower < value) and (value < upper):
+                return -np.log(np.log(upper/lower))
+            else:
+                return -np.inf
+
+        def random(lower=lower, upper=upper):
+            u = np.random.rand()
+            return lower * (upper/lower)**u
+
+    return scale_invariant
+
 def make_model_constantRo(current_group, av_currentChiralityData, av_currentDiffusionData):
+    # Here we vastly improve uor old Bayesian analysis based on the fits. This way we
+    # can compare, in a fair way, the frequentist bootstrapping vs. the bayesian methodology.
 
     ######################
     ### Velocity Piece ###
     ######################
 
-    ro = pymc.Uniform('ro', lower=0, upper=10.*1000., value=3*1000.)
-    vpar = pymc.Uniform('vpar', lower=10.**-6, upper=1, value=1.*10**-3)
+    vpar = create_scale_invariant('vpar', lower=10.**-6, upper=1, value=1.*10**-3)
     t = current_group['timeDelta'].values
 
     @pymc.deterministic
-    def modeled_R(ro=ro, vpar=vpar, t=t):
-        return ro + vpar*t
+    def modeled_R(vpar=vpar, t=t):
+        return vpar*t
 
     R = pymc.TruncatedNormal('R', mu = modeled_R, tau=1.0/(0.1*1000)**2, a=0, \
-                             value=current_group['colony_radius_um'].values, observed=True)
+                             value=current_group['deltaR'].values, observed=True)
 
     #######################
     ### Chirality Piece ###
@@ -176,17 +194,22 @@ def make_model_constantRo(current_group, av_currentChiralityData, av_currentDiff
 
     log_r_ri = av_currentChiralityData['log_r_div_ri', 'mean'].values
 
-    vperp = pymc.Normal('vperp', mu=0, tau=1./(0.1)**2, value=0)
-
-    @pymc.deterministic
-    def modeled_dtheta(vperp=vperp, vpar=vpar, log_r_ri = log_r_ri):
-        return (vperp/vpar) * log_r_ri
+    vperp = create_scale_invariant('vperp', lower=10.**-10, upper=1, value=1.*10.**-3)
 
     dthetaDataChir = av_currentChiralityData['rotated_righthanded', 'mean'].values
     dthetaStdChir = av_currentChiralityData['rotated_righthanded', 'std'].values
     dthetaTauChir = 1.0/dthetaStdChir**2
 
-    dthetaTauChir[0] = 10**50 # You can't have tau be infinity, although it really is in this case
+    # Drop the 0 dtheta piece with infinite accuracy
+    points = np.isfinite(dthetaTauChir)
+
+    dthetaDataChir = dthetaDataChir[points]
+    log_r_ri = log_r_ri[points]
+    dthetaTauChir = dthetaTauChir[points]
+
+    @pymc.deterministic
+    def modeled_dtheta(vperp=vperp, vpar=vpar, log_r_ri = log_r_ri):
+        return (vperp/vpar) * log_r_ri
 
     dtheta = pymc.Normal('dtheta', mu = modeled_dtheta, tau=dthetaTauChir, value=dthetaDataChir, observed=True)
 
@@ -199,17 +222,23 @@ def make_model_constantRo(current_group, av_currentChiralityData, av_currentDiff
 
     # Estimating the error of the variance
     numSamples = av_currentDiffusionData['rotated_righthanded', 'len'].values
-    #dtheta_variance_error = np.sqrt(2*np.sqrt(dtheta_variance)**4/(numSamples - 1))
+    dtheta_variance_error = np.sqrt(2*np.sqrt(dtheta_variance)**4/(numSamples - 1))
+    dtheta_variance_tau = 1./dtheta_variance_error**2
 
-    ds = pymc.Uniform('ds', lower=10.**-2, upper=10**2, value=1.)
+    # Drop the infinite variance piece
+    points = np.isfinite(dtheta_variance_tau)
+
+    dtheta_variance = dtheta_variance[points]
+    dif_xaxis = dif_xaxis[points]
+    dtheta_variance_tau = dtheta_variance_tau[points]
+
+    ds = create_scale_invariant('ds', lower=10.**-2, upper=10**2, value=1.)
 
     @pymc.deterministic
     def modeled_variance(vpar=vpar, ds=ds, dif_xaxis=dif_xaxis):
         return (2*ds/vpar)*dif_xaxis
 
-    dtheta_variance_std = pymc.Uniform('dtheta_variance_error', lower=10.**-6, upper=1, value=10.**-3.)
-
-    var_dtheta = pymc.TruncatedNormal('var_dtheta', mu=modeled_variance, tau=1./dtheta_variance_std**2, a=0, \
+    var_dtheta = pymc.TruncatedNormal('var_dtheta', mu=modeled_variance, tau=dtheta_variance_tau, a=0, \
                              value=dtheta_variance, observed=True)
 
     #######################
