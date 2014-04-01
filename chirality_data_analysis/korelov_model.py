@@ -170,40 +170,7 @@ def create_scale_invariant(name, lower = 10.**-20, upper=1, value = 10.**-5):
 
     return scale_invariant
 
-def create_weighted_potential(name, length):
-
-    draws = np.random.rand(length)
-    draws.sort()
-    gaps = draws[1:] - draws[:-1]
-    gaps = np.insert(gaps, 0, draws[0])
-    gaps = np.append(gaps, 1-draws[-1])
-
-    @pymc.stochastic(name=name + '_weight_stoch')
-    def random_weights(value=gaps):
-        numToDraw = len(gaps)
-
-        def logp(value=value):
-            return 0
-
-        def random():
-            draws = np.random.rand(numToDraw)
-            draws.sort()
-            gaps = draws[1:] - draws[:-1]
-            gaps = np.insert(gaps, 0, draws[0])
-            gaps = np.append(gaps, 1-draws[-1])
-
-            return gaps
-
-    w = random_weights
-
-    @pymc.potential(name=name + '_weight_potential')
-    def bootstrap(w=w):
-        # Weigh the probability distribution of R randomly
-        return np.sum(np.log(w))
-
-    return bootstrap
-
-def make_model_constantRo(current_group, av_currentChiralityData, av_currentDiffusionData, bootstrap=False, **kwargs):
+def make_model_constantRo(current_group, av_currentChiralityData, av_currentDiffusionData, **kwargs):
     # Here we vastly improve uor old Bayesian analysis based on the fits. This way we
     # can compare, in a fair way, the frequentist bootstrapping vs. the bayesian methodology.
 
@@ -221,16 +188,13 @@ def make_model_constantRo(current_group, av_currentChiralityData, av_currentDiff
     R = pymc.TruncatedNormal('R', mu = modeled_R, tau=1.0/(0.1*1000)**2, a=0, \
                              value=current_group['deltaR'].values, observed=True)
 
-    if bootstrap: # Incorporate soft potential
-        r_weights = create_weighted_potential('R', len(R.value))
-
     #######################
     ### Chirality Piece ###
     #######################
 
     log_r_ri = av_currentChiralityData['log_r_div_ri', 'mean'].values
 
-    vperp = create_scale_invariant('vperp', lower=10.**-10, upper=1, value=1.*10.**-3)
+    vperp = pymc.Normal('vperp', mu=0, tau=1./(1.**2), value=1.*10.**-3)
 
     dthetaDataChir = av_currentChiralityData['rotated_righthanded', 'mean'].values
     dthetaStdChir = av_currentChiralityData['rotated_righthanded', 'std'].values
@@ -248,9 +212,6 @@ def make_model_constantRo(current_group, av_currentChiralityData, av_currentDiff
         return (vperp/vpar) * log_r_ri
 
     dtheta = pymc.Normal('dtheta', mu = modeled_dtheta, tau=dthetaTauChir, value=dthetaDataChir, observed=True)
-
-    if bootstrap: # Incorporate soft potential
-        dtheta_weights = create_weighted_potential('dtheta', len(dtheta.value))
 
     #######################
     ### Diffusion Piece ###
@@ -279,9 +240,6 @@ def make_model_constantRo(current_group, av_currentChiralityData, av_currentDiff
 
     var_dtheta = pymc.TruncatedNormal('var_dtheta', mu=modeled_variance, tau=dtheta_variance_tau, a=0, \
                              value=dtheta_variance, observed=True)
-
-    if bootstrap: # Incorporate soft potential
-        var_weights = create_weighted_potential('var_dtheta', len(var_dtheta.value))
 
     #######################
     ### Returning Model ###
