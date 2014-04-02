@@ -10,148 +10,7 @@ import statsmodels.api as sm
 import data_analysis
 
 
-growthData = None
-chiralityData = None
-
-########### Setting up the Analysis ###############
-
-def getNumUnique(x):
-        return len(np.unique(x))
-
-# A list of everything you apply to the data
-aggList = [np.mean, np.std, np.var, len]
-
-def setup_analysis(group_on_name, group_on_value, lenToFilterChir = 0, lenToFilterDiff=0, numChirBins=50, numDiffBins=50, **kwargs):
-    '''The following inputs MUST be in your pandas matrices or else everything will crash.
-
-    Chirality Data:
-    1. 'rotated_righthanded': \Delta \theta in a right handed coordinate system
-    2. 'log_r_div_ri': The dimensionless radius desired
-    3. '1divri_minus_1divr_1divum' : A different scaled radius
-    4. 'plateID': All images taken from the same plate should have the same integer ID
-    5. Column that you will separate on, i.e. group_on_name
-
-    Growth Data:
-    1. 'colony_radius_um': The colony radius in um
-    2. 'timeDelta': The elapsed time in seconds since innoculation
-    3. 'plateID': All images taken from the same plate should have the same integer ID
-    4. Column that you will separate on, i.e. group_on_name
-    '''
-
-    print 'Setting up the simulation for' , group_on_name , '=' , group_on_value , '...'
-
-    # Get the desired data
-    plate_groups = growthData.groupby([group_on_name])
-    current_growth_group = plate_groups.get_group(group_on_value)
-
-    currentChiralityData = chiralityData[(chiralityData[group_on_name] == group_on_value)]
-    print
-
-    av_currentChiralityData = binChiralityData(currentChiralityData, numChirBins, 'log_r_div_ri', lenToFilter = lenToFilterChir)
-    plot_av_chirality(av_currentChiralityData)
-
-    print
-    av_currentDiffusionData = binChiralityData(currentChiralityData, numDiffBins, '1divri_minus_1divr_1divum', lenToFilter = lenToFilterDiff)
-    plot_diffusion(av_currentDiffusionData)
-
-    print
-    print 'Done setting up!'
-
-    plt.show()
-
-    return currentChiralityData, current_growth_group, av_currentChiralityData, av_currentDiffusionData
-
-def binChiralityData(currentChiralityData, numChirBins, bin_on, lenToFilter = 0, verbose=True):
-    '''Returns the average data per sector in each plate binned over the desired radius.'''
-
-    min_x = currentChiralityData[bin_on].min() - 10.**-6.
-    max_x = currentChiralityData[bin_on].max() + 10.**-6.
-    numBins = numChirBins
-
-    if verbose:
-        print 'numBins for ', bin_on, ':' , numBins
-        print 'Min ', bin_on, ':', min_x
-        print 'Max ', bin_on, ':', max_x
-
-    bins, binsize = np.linspace(min_x, max_x, numBins, retstep=True)
-
-    if verbose: print 'Dimensionless Binsize for ', bin_on, ':' , binsize
-
-    # Group by sector! Specified by a label and a plate
-    sector_groups = currentChiralityData.groupby([pd.cut(currentChiralityData[bin_on], bins), 'plateID', 'label'])
-    sectorData = sector_groups.agg(np.mean)
-    sectorData = sectorData.rename(columns={bin_on : bin_on + '_mean'})
-    sectorData = sectorData.reset_index()
-    sectorData = sectorData.rename(columns={bin_on : 'bins',
-                                           bin_on + '_mean' : bin_on})
-
-    # The sector data must now be corrected; the mean dx and dy should be used to recalculate all other quantities
-    sectorData = data_analysis.recalculate_by_mean_position(sectorData)
-
-    av_currentChiralityData = sectorData.groupby(['bins']).agg(aggList)
-
-    # The key here is to filter out the pieces that have too few elements
-    av_currentChiralityData = av_currentChiralityData[av_currentChiralityData['rotated_righthanded', 'len'] > lenToFilter]
-
-    av_currentChiralityData = av_currentChiralityData.sort([(bin_on, 'mean')])
-
-    ## At this point we should actually recalculate all positions/theta based on the mean position, i.e. dx and dy
-
-    return av_currentChiralityData
-
-def plot_av_chirality(av_currentChiralityData):
-    x = av_currentChiralityData['log_r_div_ri', 'mean'].values
-    y = av_currentChiralityData['rotated_righthanded', 'mean'].values
-    yerr = av_currentChiralityData['rotated_righthanded', 'std'].values
-
-    plt.figure()
-    plt.plot(x , y, 'o-')
-    plt.fill_between(x, y - yerr, y + yerr, alpha=0.3, antialiased=True)
-    plt.xlabel('Average $\ln{(r/r_i)}$')
-    plt.ylabel('Average d$\\theta$')
-    plt.title('Average d$\\theta$ vs. Normalized Radius')
-
-    #######################
-    ## Number of Points ###
-    #######################
-
-    x = av_currentChiralityData['log_r_div_ri', 'mean'].values
-    y = av_currentChiralityData['rotated_righthanded', 'len'].values
-
-    plt.figure()
-    plt.plot(x , y, 'o-')
-
-    plt.xlabel('Average $\ln{(r/r_i)}$')
-    plt.ylabel('Number of Samples')
-    plt.title('Number of Samples vs. scaled x-axis (Chirality)')
-
-def plot_diffusion(av_currentDiffusionData):
-
-    x = av_currentDiffusionData['1divri_minus_1divr_1divum', 'mean'].values
-    y = av_currentDiffusionData['rotated_righthanded', 'var'].values
-
-    plt.figure()
-    plt.plot(x , y, 'o-')
-
-    plt.xlabel('Average $1/r_i - 1/r$')
-    plt.ylabel('Var(d$\\theta)$')
-    plt.title('Variance of d$\\theta$ vs. Normalized Radius')
-
-    ########################
-    ### Number of Points ###
-    ########################
-
-    x = av_currentDiffusionData['1divri_minus_1divr_1divum', 'mean'].values
-    y = av_currentDiffusionData['rotated_righthanded', 'len'].values
-
-    plt.figure()
-    plt.plot(x , y, 'o-')
-
-    plt.xlabel('Average $1/r_i - 1/r$')
-    plt.ylabel('Number of Samples')
-    plt.title('Number of Samples vs. scaled x-axis (Diffusion)')
-
-########### Creating Models #############
+### Utility Functions
 
 def create_scale_invariant(name, lower = 10.**-20, upper=1, value = 10.**-5):
 
@@ -170,105 +29,266 @@ def create_scale_invariant(name, lower = 10.**-20, upper=1, value = 10.**-5):
 
     return scale_invariant
 
-def make_model_constantRo(current_group, av_currentChiralityData, av_currentDiffusionData, **kwargs):
-    # Here we vastly improve uor old Bayesian analysis based on the fits. This way we
-    # can compare, in a fair way, the frequentist bootstrapping vs. the bayesian methodology.
+def resample_df(df):
+    rows = np.random.choice(df.index, len(df.index))
+    return df.ix[rows]
 
-    ######################
-    ### Velocity Piece ###
-    ######################
 
-    vpar = create_scale_invariant('vpar', lower=10.**-5, upper=1, value=1.*10**-3)
-    t = current_group['timeDelta'].values
+### Main Code
 
-    @pymc.deterministic
-    def modeled_R(vpar=vpar, t=t):
-        return vpar*t
+class chirality_model:
+    def __init__(self, growthData, chiralityData, group_on_name, group_on_value, **kwargs):
 
-    R = pymc.TruncatedNormal('R', mu = modeled_R, tau=1.0/(0.1*1000)**2, a=0, \
-                             value=current_group['deltaR'].values, observed=True)
-
-    #######################
-    ### Chirality Piece ###
-    #######################
-
-    log_r_ri = av_currentChiralityData['log_r_div_ri', 'mean'].values
-
-    vperp = pymc.Normal('vperp', mu=0, tau=1./(1.**2), value=1.*10.**-3)
-
-    dthetaDataChir = av_currentChiralityData['rotated_righthanded', 'mean'].values
-    dthetaStdChir = av_currentChiralityData['rotated_righthanded', 'std'].values
-    dthetaTauChir = 1.0/dthetaStdChir**2
-
-    # Drop the 0 dtheta piece with infinite accuracy
-    points = np.isfinite(dthetaTauChir)
-
-    dthetaDataChir = dthetaDataChir[points]
-    log_r_ri = log_r_ri[points]
-    dthetaTauChir = dthetaTauChir[points]
-
-    @pymc.deterministic
-    def modeled_dtheta(vperp=vperp, vpar=vpar, log_r_ri = log_r_ri):
-        return (vperp/vpar) * log_r_ri
-
-    dtheta = pymc.Normal('dtheta', mu = modeled_dtheta, tau=dthetaTauChir, value=dthetaDataChir, observed=True)
-
-    #######################
-    ### Diffusion Piece ###
-    #######################
-
-    dif_xaxis = av_currentDiffusionData['1divri_minus_1divr_1divum', 'mean'].values
-    dtheta_variance = av_currentDiffusionData['rotated_righthanded', 'var'].values
-
-    # Estimating the error of the variance
-    numSamples = av_currentDiffusionData['rotated_righthanded', 'len'].values
-    dtheta_variance_error = np.sqrt(2*np.sqrt(dtheta_variance)**4/(numSamples - 1))
-    dtheta_variance_tau = 1./dtheta_variance_error**2
-
-    # Drop the infinite variance piece
-    points = np.isfinite(dtheta_variance_tau)
-
-    dtheta_variance = dtheta_variance[points]
-    dif_xaxis = dif_xaxis[points]
-    dtheta_variance_tau = dtheta_variance_tau[points]
-
-    ds = create_scale_invariant('ds', lower=10.**-2, upper=10**2, value=1.)
-
-    @pymc.deterministic
-    def modeled_variance(vpar=vpar, ds=ds, dif_xaxis=dif_xaxis):
-        return (2*ds/vpar)*dif_xaxis
-
-    var_dtheta = pymc.TruncatedNormal('var_dtheta', mu=modeled_variance, tau=dtheta_variance_tau, a=0, \
-                             value=dtheta_variance, observed=True)
-
-    #######################
-    ### Returning Model ###
-    #######################
-
-    return locals()
-
-class chirality_pymc_model:
-    def __init__(self, group_on_name, group_on_value, **kwargs):
         '''Keyword arguments:
         lenToFilterChir: Below what number of samples a bin should be thrown out for chirality
         lenToFilterDiff: Below what number of samples a bin should be thrown out for diffusion
         numChirBins: Number of chirality bins
         numDiffBins: Number of diffusion bins
+        verbose: Whether or not to be verbose
         '''
+
+        # Define attributes
+        self.growthData = growthData
+        self.chiralityData = chiralityData
         self.group_on_name = group_on_name
         self.group_on_value = group_on_value
-        self.currentChiralityData, self.currentGrowth, self.av_chir, self.av_diff = setup_analysis(group_on_name, group_on_value, **kwargs)
-        self.model = make_model_constantRo(self.currentGrowth, self.av_chir, self.av_diff, **kwargs)
-        self.M = pymc.MCMC(self.model, db='pickle', dbname=group_on_name + '_' + str(group_on_value)+'.pkl')
-        self.N = pymc.MAP(self.model)
+        self.kwargs = kwargs
+        # A list of everything you apply to the data
+        self.aggList = [np.mean, np.std, np.var, len]
 
+        # Binned Data
+        self.cur_growth = None
+        self.cur_chir = None
+        self.av_chir = None
+        self.av_diff = None
+
+        # Pymc Variables
+        self.pymc_model = None
+
+        # Frequentist Variables
         self.Ro_results_freq= None
         self.dtheta_results_freq = None
         self.variance_results_freq = None
 
+
+        # Set up the system
+        self.rebin_all_data(**self.kwargs)
+
+        # Set up the pymc model
+        self.remake_pymc_model(**self.kwargs)
+        self.M = pymc.MCMC(self.pymc_model, db='pickle', dbname=self.group_on_name + '_' + str(self.group_on_value)+'.pkl')
+        self.N = pymc.MAP(self.pymc_model)
+
+    def rebin_all_data(self, lenToFilterChir = 0, lenToFilterDiff=0, numChirBins=50, numDiffBins=50, verbose=True, **kwargs):
+        '''The following inputs MUST be in your pandas matrices or else everything will crash.
+
+        Chirality Data:
+        1. 'rotated_righthanded': \Delta \theta in a right handed coordinate system
+        2. 'log_r_div_ri': The dimensionless radius desired
+        3. '1divri_minus_1divr_1divum' : A different scaled radius
+        4. 'plateID': All images taken from the same plate should have the same integer ID
+        5. Column that you will separate on, i.e. group_on_name
+
+        Growth Data:
+        1. 'colony_radius_um': The colony radius in um
+        2. 'timeDelta': The elapsed time in seconds since innoculation
+        3. 'plateID': All images taken from the same plate should have the same integer ID
+        4. Column that you will separate on, i.e. group_on_name
+        '''
+
+        if verbose: print 'Setting up the simulation for' , self.group_on_name , '=' , self.group_on_value , '...'
+
+        # Get the desired data
+        plate_groups = self.growthData.groupby([self.group_on_name])
+
+        self.cur_growth = plate_groups.get_group(self.group_on_value)
+        self.cur_chir = self.chiralityData[(self.chiralityData[self.group_on_name] == self.group_on_value)]
+
+        self.av_chir = self.binChiralityData(numChirBins, 'log_r_div_ri', lenToFilter = lenToFilterChir,
+                                             verbose=verbose, **kwargs)
+        if verbose: self.plot_av_chirality(**self.kwargs)
+
+        self.av_diff = self.binChiralityData(numDiffBins, '1divri_minus_1divr_1divum', lenToFilter = lenToFilterDiff,
+                                             verbose=verbose, **kwargs)
+        if verbose: self.plot_av_diffusion(**kwargs)
+
+        if verbose: print 'Done setting up!'
+
+        if verbose: plt.show(**kwargs)
+
+    def binChiralityData(self, numChirBins, bin_on, lenToFilter = 0, verbose=True, **kwargs):
+        '''Returns the average data per sector in each plate binned over the desired radius.'''
+
+        min_x = self.cur_chir[bin_on].min() - 10.**-6.
+        max_x = self.cur_chir[bin_on].max() + 10.**-6.
+        numBins = numChirBins
+
+        if verbose:
+            print 'numBins for ', bin_on, ':' , numBins
+            print 'Min ', bin_on, ':', min_x
+            print 'Max ', bin_on, ':', max_x
+
+        bins, binsize = np.linspace(min_x, max_x, numBins, retstep=True)
+
+        if verbose: print 'Dimensionless Binsize for ', bin_on, ':' , binsize
+
+        # Group by sector! Specified by a label and a plate
+        sector_groups = self.cur_chir.groupby([pd.cut(self.cur_chir[bin_on], bins), 'plateID', 'label'])
+        sectorData = sector_groups.agg(np.mean)
+        sectorData = sectorData.rename(columns={bin_on : bin_on + '_mean'})
+        sectorData = sectorData.reset_index()
+        sectorData = sectorData.rename(columns={bin_on : 'bins',
+                                               bin_on + '_mean' : bin_on})
+
+        # The sector data must now be corrected; the mean dx and dy should be used to recalculate all other quantities
+        sectorData = data_analysis.recalculate_by_mean_position(sectorData)
+
+        av_currentChiralityData = sectorData.groupby(['bins']).agg(self.aggList)
+
+        # The key here is to filter out the pieces that have too few elements
+        av_currentChiralityData = av_currentChiralityData[av_currentChiralityData['rotated_righthanded', 'len'] > lenToFilter]
+
+        av_currentChiralityData = av_currentChiralityData.sort([(bin_on, 'mean')])
+
+        ## At this point we should actually recalculate all positions/theta based on the mean position, i.e. dx and dy
+
+        return av_currentChiralityData
+
+    def plot_av_chirality(self, **kwargs):
+        x = self.av_chir['log_r_div_ri', 'mean'].values
+        y = self.av_chir['rotated_righthanded', 'mean'].values
+        yerr = self.av_chir['rotated_righthanded', 'std'].values
+
+        plt.figure()
+        plt.plot(x , y, 'o-')
+        plt.fill_between(x, y - yerr, y + yerr, alpha=0.3, antialiased=True)
+        plt.xlabel('Average $\ln{(r/r_i)}$')
+        plt.ylabel('Average d$\\theta$')
+        plt.title('Average d$\\theta$ vs. Normalized Radius')
+
+        #######################
+        ## Number of Points ###
+        #######################
+
+        x = self.av_chir['log_r_div_ri', 'mean'].values
+        y = self.av_chir['rotated_righthanded', 'len'].values
+
+        plt.figure()
+        plt.plot(x , y, 'o-')
+
+        plt.xlabel('Average $\ln{(r/r_i)}$')
+        plt.ylabel('Number of Samples')
+        plt.title('Number of Samples vs. scaled x-axis (Chirality)')
+
+    def plot_av_diffusion(self, **kwargs):
+
+        x = self.av_diff['1divri_minus_1divr_1divum', 'mean'].values
+        y = self.av_diff['rotated_righthanded', 'var'].values
+
+        plt.figure()
+        plt.plot(x , y, 'o-')
+
+        plt.xlabel('Average $1/r_i - 1/r$')
+        plt.ylabel('Var(d$\\theta)$')
+        plt.title('Variance of d$\\theta$ vs. Normalized Radius')
+
+        ########################
+        ### Number of Points ###
+        ########################
+
+        x = self.av_diff['1divri_minus_1divr_1divum', 'mean'].values
+        y = self.av_diff['rotated_righthanded', 'len'].values
+
+        plt.figure()
+        plt.plot(x , y, 'o-')
+
+        plt.xlabel('Average $1/r_i - 1/r$')
+        plt.ylabel('Number of Samples')
+        plt.title('Number of Samples vs. scaled x-axis (Diffusion)')
+
+    ########### Creating Models #############
+
+    def remake_pymc_model(self, **kwargs):
+        # Here we vastly improve uor old Bayesian analysis based on the fits. This way we
+        # can compare, in a fair way, the frequentist bootstrapping vs. the bayesian methodology.
+
+        ######################
+        ### Velocity Piece ###
+        ######################
+
+        vpar = create_scale_invariant('vpar', lower=10.**-5, upper=1, value=1.*10**-3)
+        t = self.cur_growth['timeDelta'].values
+
+        @pymc.deterministic
+        def modeled_R(vpar=vpar, t=t):
+            return vpar*t
+
+        R = pymc.TruncatedNormal('R', mu = modeled_R, tau=1.0/(0.1*1000)**2, a=0, \
+                                 value=self.cur_growth['deltaR'].values, observed=True)
+
+        #######################
+        ### Chirality Piece ###
+        #######################
+
+        log_r_ri = self.av_chir['log_r_div_ri', 'mean'].values
+
+        vperp = pymc.Normal('vperp', mu=0, tau=1./(1.**2), value=1.*10.**-3)
+
+        dthetaDataChir = self.av_chir['rotated_righthanded', 'mean'].values
+        dthetaStdChir = self.av_chir['rotated_righthanded', 'std'].values
+        dthetaTauChir = 1.0/dthetaStdChir**2
+
+        # Drop the 0 dtheta piece with infinite accuracy; already accounted for in the model
+        points = np.isfinite(dthetaTauChir)
+
+        dthetaDataChir = dthetaDataChir[points]
+        log_r_ri = log_r_ri[points]
+        dthetaTauChir = dthetaTauChir[points]
+
+        @pymc.deterministic
+        def modeled_dtheta(vperp=vperp, vpar=vpar, log_r_ri = log_r_ri):
+            return (vperp/vpar) * log_r_ri
+
+        dtheta = pymc.Normal('dtheta', mu = modeled_dtheta, tau=dthetaTauChir, value=dthetaDataChir, observed=True)
+
+        #######################
+        ### Diffusion Piece ###
+        #######################
+
+        dif_xaxis = self.av_diff['1divri_minus_1divr_1divum', 'mean'].values
+        dtheta_variance = self.av_diff['rotated_righthanded', 'var'].values
+
+        # Estimating the error of the variance
+        numSamples = self.av_diff['rotated_righthanded', 'len'].values
+        dtheta_variance_error = np.sqrt(2*np.sqrt(dtheta_variance)**4/(numSamples - 1))
+        dtheta_variance_tau = 1./dtheta_variance_error**2
+
+        # Drop the infinite variance piece
+        points = np.isfinite(dtheta_variance_tau)
+
+        dtheta_variance = dtheta_variance[points]
+        dif_xaxis = dif_xaxis[points]
+        dtheta_variance_tau = dtheta_variance_tau[points]
+
+        ds = create_scale_invariant('ds', lower=10.**-2, upper=10**2, value=1.)
+
+        @pymc.deterministic
+        def modeled_variance(vpar=vpar, ds=ds, dif_xaxis=dif_xaxis):
+            return (2*ds/vpar)*dif_xaxis
+
+        var_dtheta = pymc.TruncatedNormal('var_dtheta', mu=modeled_variance, tau=dtheta_variance_tau, a=0, \
+                                 value=dtheta_variance, observed=True)
+
+        #######################
+        ### Returning Model ###
+        #######################
+
+        self.pymc_model = locals()
+
+
     def frequentist_fit(self, currentGrowth = None, av_chir = None, av_diff = None):
         if currentGrowth is None:
-            currentGrowth = self.currentGrowth
+            currentGrowth = self.cur_growth
         if av_chir is None:
             av_chir = self.av_chir
         if av_diff is None:
@@ -354,12 +374,7 @@ class chirality_pymc_model:
 
         return {'vpar' : vpar, 'vperp' : vperp, 'Ds' : Ds}
 
-    @staticmethod
-    def resample_df(df):
-        rows = np.random.choice(df.index, len(df.index))
-        return df.ix[rows]
-
-    def frequentist_bootstrap(self, numIterations, plot=False):
+    def frequentist_linearfit_bootstrap(self, numIterations, plot=False):
         # This is a little silly as we calculate the error AFTER we have selected the sectors
         # and averaged them. We probably want to bootstrap SELECTING the sectors. Right?
         # It is worth figuring out regardless, assuming it does not take too long.
@@ -370,15 +385,15 @@ class chirality_pymc_model:
 
         for i in range(numIterations):
             # Sample from the data appropriately
-            currentGrowth = self.resample_df(self.currentGrowth)
+            currentGrowth = resample_df(self.cur_growth)
             if plot: plt.plot(currentGrowth['timeDelta'], currentGrowth['colony_radius_um'], 'o')
 
             if plot: plt.figure()
-            av_chir = self.resample_df(self.av_chir)
+            av_chir = resample_df(self.av_chir)
             if plot: plt.plot(av_chir['log_r_div_ri', 'mean'], av_chir['rotated_righthanded', 'mean'], 'o')
 
             if plot: plt.figure()
-            av_diff = self.resample_df(self.av_diff)
+            av_diff = resample_df(self.av_diff)
             if plot: plt.plot(av_diff['1divri_minus_1divr_1divum', 'mean'], av_diff['rotated_righthanded', 'var'], 'o')
 
             self.frequentist_fit(currentGrowth=currentGrowth, av_chir= av_chir, av_diff=av_diff)
