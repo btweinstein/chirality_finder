@@ -10,6 +10,7 @@ import statsmodels.api as sm
 import data_analysis
 
 
+
 ### Utility Functions
 
 def create_scale_invariant(name, lower = 10.**-20, upper=1, value = 10.**-5):
@@ -33,11 +34,10 @@ def resample_df(df):
     rows = np.random.choice(df.index, len(df.index))
     return df.ix[rows]
 
-
 ### Main Code
 
 class chirality_model:
-    def __init__(self, growthData, chiralityData, group_on_name, group_on_value, **kwargs):
+    def __init__(self, growthData, chiralityData, group_on_name, group_on_value, bootstrap=False, **kwargs):
 
         '''Keyword arguments:
         lenToFilterChir: Below what number of samples a bin should be thrown out for chirality
@@ -70,12 +70,23 @@ class chirality_model:
         self.dtheta_results_freq = None
         self.variance_results_freq = None
 
+        # Get subset of data
+        plate_groups = self.growthData.groupby([self.group_on_name])
+        self.cur_growth = plate_groups.get_group(self.group_on_value)
+        self.cur_chir = self.chiralityData[(self.chiralityData[self.group_on_name] == self.group_on_value)]
+        # Set equal weights for the binning; changes for the bootstrap
+
+        edge_groups = self.cur_chir.groupby(['plateID', 'label'])
+        self.cur_chir['binning_weights'] = 1./len(edge_groups)
 
         # Set up the system
         self.rebin_all_data(**self.kwargs)
 
         # Set up the pymc model
-        self.remake_pymc_model(**self.kwargs)
+        if bootstrap:
+            self.remake_pymc_bootstrap(**self.kwargs)
+        else:
+            self.remake_pymc_model(**self.kwargs)
         self.M = pymc.MCMC(self.pymc_model, db='pickle', dbname=self.group_on_name + '_' + str(self.group_on_value)+'.pkl')
         self.N = pymc.MAP(self.pymc_model)
 
@@ -97,12 +108,6 @@ class chirality_model:
         '''
 
         if verbose: print 'Setting up the simulation for' , self.group_on_name , '=' , self.group_on_value , '...'
-
-        # Get the desired data
-        plate_groups = self.growthData.groupby([self.group_on_name])
-
-        self.cur_growth = plate_groups.get_group(self.group_on_value)
-        self.cur_chir = self.chiralityData[(self.chiralityData[self.group_on_name] == self.group_on_value)]
 
         self.av_chir = self.binChiralityData(numChirBins, 'log_r_div_ri', lenToFilter = lenToFilterChir,
                                              verbose=verbose, **kwargs)
@@ -132,17 +137,22 @@ class chirality_model:
 
         if verbose: print 'Dimensionless Binsize for ', bin_on, ':' , binsize
 
-        # Group by sector! Specified by a label and a plate
+        # Use mean IN EACH EDGE. DO NOT BOOTSTRAP HERE
+
         sector_groups = self.cur_chir.groupby([pd.cut(self.cur_chir[bin_on], bins), 'plateID', 'label'])
         sectorData = sector_groups.agg(np.mean)
+
         sectorData = sectorData.rename(columns={bin_on : bin_on + '_mean'})
+
+
         sectorData = sectorData.reset_index()
         sectorData = sectorData.rename(columns={bin_on : 'bins',
                                                bin_on + '_mean' : bin_on})
 
+        ### BOOTSTRAPPING HAPPENS HERE #####
+
         # The sector data must now be corrected; the mean dx and dy should be used to recalculate all other quantities
         sectorData = data_analysis.recalculate_by_mean_position(sectorData)
-
         av_currentChiralityData = sectorData.groupby(['bins']).agg(self.aggList)
 
         # The key here is to filter out the pieces that have too few elements
@@ -208,6 +218,72 @@ class chirality_model:
 
     ########### Creating Models #############
 
+    def remake_pymc_bootstrap(self, **kwargs):
+
+        model_dict = {}
+        ######################
+        ### Velocity Piece ###
+        ######################
+
+        vpar = create_scale_invariant('vpar', lower=10.**-5, upper=1, value=1.*10**-3)
+        model_dict['vpar'] = vpar
+
+        plate_group = self.cur_growth.groupby('plateID')
+        num_plates = len(plate_group)
+        # Create a dirilect distribution to add fluctuations
+        vpar_dir = pymc.Dirichlet('vpar_dir', np.ones(num_plates), trace=False)
+        model_dict['vpar_dir'] = vpar_dir
+        vpar_weights = pymc.CompletedDirichlet('vpar_weights', vpar_dir)
+        model_dict['vpar_weights'] = vpar_weights
+
+        count = 0
+        for n, g in plate_group:
+            # Get all data corresponding to the plate group
+
+            t = g['timeDelta'].values
+
+            @pymc.deterministic(trace=False)
+            def modeled_R(vpar=vpar, t=t):
+                return vpar*t
+
+            rname = 'R_' + str(int(n))
+            R = pymc.TruncatedNormal(rname, mu = modeled_R, tau=1.0/(0.1*1000)**2, a=0, \
+                                     value=g['deltaR'].values, observed=True)
+            model_dict[rname] = R
+
+            # Make a potential to account for the weighting
+            potential_name = 'R_weight_' + str(int(n))
+            @pymc.potential(name=potential_name)
+            def r_weight(weight = vpar_weights[0, count], R=R):
+                return np.log(weight)
+
+            model_dict[potential_name] = r_weight
+
+            count += 1
+
+        #######################
+        ### Weighting Sectors ##
+        #######################
+
+        edge_group = self.cur_chir.groupby(['plateID', 'label'])
+        # Create a Dirilecht distribution to deal with this
+        num_edges = len(edge_group)
+
+        sector_dir = pymc.Dirichlet('sector_dir', np.ones(num_edges), trace=False)
+        model_dict['sector_dir'] = sector_dir
+        sector_weights = pymc.CompletedDirichlet('sector_weights', sector_dir)
+        model_dict['sector_weights'] = sector_weights
+        # When calculating averages, use these weights!
+
+        #####################
+        ### Chirality Data ##
+        #####################
+
+        # We must dynamically bin this data, unfortunately :(
+
+        ###### Done! #######
+        self.pymc_model = model_dict
+
     def remake_pymc_model(self, **kwargs):
         # Here we vastly improve uor old Bayesian analysis based on the fits. This way we
         # can compare, in a fair way, the frequentist bootstrapping vs. the bayesian methodology.
@@ -215,6 +291,8 @@ class chirality_model:
         ######################
         ### Velocity Piece ###
         ######################
+
+        plates = self.cur_growth.groupby('plateID')
 
         vpar = create_scale_invariant('vpar', lower=10.**-5, upper=1, value=1.*10**-3)
         t = self.cur_growth['timeDelta'].values
