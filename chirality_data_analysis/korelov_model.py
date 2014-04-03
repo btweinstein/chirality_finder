@@ -12,6 +12,7 @@ import data_analysis
 
 
 
+
 ### Utility Functions
 
 def create_scale_invariant(name, lower = 10.**-20, upper=1, value = 10.**-5):
@@ -37,10 +38,12 @@ def resample_df(df):
 
 def weighted_info(x):
     weights = x['binning_weights']
-    average = np.average(x, weights=weights)
-    variance = np.average((x - average)**2, weights=weights)
-    std = np.sqrt(variance)
-    length = len(x)
+    x = x.drop('bins', axis=1)
+    average = x.mul(weights, axis=0).sum()
+    variance = (x - average)**2.
+    variance = variance.mul(weights,axis=0).sum()
+    std = variance.apply(np.sqrt)
+    length = x.count(axis = 1)
 
     return pd.concat({'mean' : average, 'var' : variance, 'std' : std, 'len' : length})
 
@@ -138,11 +141,11 @@ class chirality_model:
 
     def rebin_sectors(self):
         '''Sectors are already filtered by length. You just have to do a weighted mean here.'''
-        print self.av_chir.columns
-        self.av_chir = self.cur_chir_sectors.groupby(['bins']).apply(weighted_info)
+
+        self.av_chir = self.cur_chir_sectors.groupby('bins').apply(weighted_info)
         self.av_chir.sort([('log_r_div_ri', 'mean')])
 
-        self.av_diff = self.cur_diff_sectors.groupby(['bins']).apply(weighted_info)
+        self.av_diff = self.cur_diff_sectors.groupby('bins').apply(weighted_info)
         self.av_diff.sort([('1divri_minus_1divr_1divum', 'mean')])
 
     def binChiralityData(self, numChirBins, bin_on, lenToFilter = 0, verbose=True, **kwargs):
