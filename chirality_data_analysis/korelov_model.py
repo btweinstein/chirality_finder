@@ -11,6 +11,7 @@ import data_analysis
 
 
 
+
 ### Utility Functions
 
 def create_scale_invariant(name, lower = 10.**-20, upper=1, value = 10.**-5):
@@ -34,6 +35,17 @@ def resample_df(df):
     rows = np.random.choice(df.index, len(df.index))
     return df.ix[rows]
 
+def weighted_info(x):
+    weights = x['binning_weights']
+    average = np.average(x, weights=weights)
+    variance = np.average((x - average)**2, weights=weights)
+    std = np.sqrt(variance)
+    length = len(x)
+
+    return pd.concat({'mean' : average, 'var' : variance, 'std' : std, 'len' : length})
+
+
+
 ### Main Code
 
 class chirality_model:
@@ -56,9 +68,13 @@ class chirality_model:
         # A list of everything you apply to the data
         self.aggList = [np.mean, np.std, np.var, len]
 
-        # Binned Data
+        # Current Data
         self.cur_growth = None
         self.cur_chir = None
+        # One point per sector per bin
+        self.cur_chir_sectors = None
+        self.cur_diff_sectors = None
+        # Binned Data
         self.av_chir = None
         self.av_diff = None
 
@@ -75,7 +91,6 @@ class chirality_model:
         self.cur_growth = plate_groups.get_group(self.group_on_value)
         self.cur_chir = self.chiralityData[(self.chiralityData[self.group_on_name] == self.group_on_value)]
         # Set equal weights for the binning; changes for the bootstrap
-
         edge_groups = self.cur_chir.groupby(['plateID', 'label'])
         self.cur_chir['binning_weights'] = 1./len(edge_groups)
 
@@ -109,17 +124,26 @@ class chirality_model:
 
         if verbose: print 'Setting up the simulation for' , self.group_on_name , '=' , self.group_on_value , '...'
 
-        self.av_chir = self.binChiralityData(numChirBins, 'log_r_div_ri', lenToFilter = lenToFilterChir,
+        self.cur_chir_sectors, self.av_chir = self.binChiralityData(numChirBins, 'log_r_div_ri', lenToFilter = lenToFilterChir,
                                              verbose=verbose, **kwargs)
         if verbose: self.plot_av_chirality(**self.kwargs)
 
-        self.av_diff = self.binChiralityData(numDiffBins, '1divri_minus_1divr_1divum', lenToFilter = lenToFilterDiff,
+        self.cur_diff_sectors, self.av_diff = self.binChiralityData(numDiffBins, '1divri_minus_1divr_1divum', lenToFilter = lenToFilterDiff,
                                              verbose=verbose, **kwargs)
         if verbose: self.plot_av_diffusion(**kwargs)
 
         if verbose: print 'Done setting up!'
 
         if verbose: plt.show(**kwargs)
+
+    def rebin_sectors(self):
+        '''Sectors are already filtered by length. You just have to do a weighted mean here.'''
+        print self.av_chir.columns
+        self.av_chir = self.cur_chir_sectors.groupby(['bins']).apply(weighted_info)
+        self.av_chir.sort([('log_r_div_ri', 'mean')])
+
+        self.av_diff = self.cur_diff_sectors.groupby(['bins']).apply(weighted_info)
+        self.av_diff.sort([('1divri_minus_1divr_1divum', 'mean')])
 
     def binChiralityData(self, numChirBins, bin_on, lenToFilter = 0, verbose=True, **kwargs):
         '''Returns the average data per sector in each plate binned over the desired radius.'''
@@ -137,7 +161,7 @@ class chirality_model:
 
         if verbose: print 'Dimensionless Binsize for ', bin_on, ':' , binsize
 
-        # Use mean IN EACH EDGE. DO NOT BOOTSTRAP HERE
+        # TAKE MEAN OF ALL EDGES. DO NOT BOOTSTRAP HERE
 
         sector_groups = self.cur_chir.groupby([pd.cut(self.cur_chir[bin_on], bins), 'plateID', 'label'])
         sectorData = sector_groups.agg(np.mean)
@@ -149,20 +173,23 @@ class chirality_model:
         sectorData = sectorData.rename(columns={bin_on : 'bins',
                                                bin_on + '_mean' : bin_on})
 
-        ### BOOTSTRAPPING HAPPENS HERE #####
+        ### BOOTSTRAPPING BASED ON AVERAGE SECTORS #####
 
         # The sector data must now be corrected; the mean dx and dy should be used to recalculate all other quantities
         sectorData = data_analysis.recalculate_by_mean_position(sectorData)
+
+        # Filter out sectordata that does not have enough points
+        num_bins_df = sectorData.groupby('bins').agg(len)
+        num_bins_df = num_bins_df.reset_index()
+        # Get good bins
+        goodBins = num_bins_df['bins'][num_bins_df['rotated_righthanded'] > lenToFilter]
+        # Only keep the good bins
+        sectorData = sectorData[sectorData['bins'].isin(goodBins)]
+
         av_currentChiralityData = sectorData.groupby(['bins']).agg(self.aggList)
-
-        # The key here is to filter out the pieces that have too few elements
-        av_currentChiralityData = av_currentChiralityData[av_currentChiralityData['rotated_righthanded', 'len'] > lenToFilter]
-
         av_currentChiralityData = av_currentChiralityData.sort([(bin_on, 'mean')])
 
-        ## At this point we should actually recalculate all positions/theta based on the mean position, i.e. dx and dy
-
-        return av_currentChiralityData
+        return sectorData, av_currentChiralityData
 
     def plot_av_chirality(self, **kwargs):
         x = self.av_chir['log_r_div_ri', 'mean'].values
