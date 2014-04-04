@@ -15,6 +15,7 @@ import data_analysis
 
 
 
+
 ### Utility Functions
 
 def create_scale_invariant(name, lower = 10.**-20, upper=1, value = 10.**-5):
@@ -141,10 +142,18 @@ class chirality_model:
 
         if verbose: plt.show(**kwargs)
 
+    def rebin_chir_sectors(self):
+        self.av_chir = self.cur_chir_sectors.groupby('bins').apply(weighted_info)
+        self.av_chir = self.av_chir.swaplevel(1, 0, axis=1)
+        self.av_chir.sort([('log_r_div_ri', 'mean')], inplace=True)
+
+    def rebin_diff_sectors(self):
+        self.av_diff = self.cur_diff_sectors.groupby('bins').apply(weighted_info)
+        self.av_diff = self.av_diff.swaplevel(1,0, axis=1)
+        self.av_diff.sort([('1divri_minus_1divr_1divum', 'mean')], inplace=True)
+
     def rebin_sectors(self):
         '''Sectors are already filtered by length. You just have to do a weighted mean here.'''
-
-        print self.cur_chir_sectors['binning_weights']
 
         self.av_chir = self.cur_chir_sectors.groupby('bins').apply(weighted_info)
         self.av_chir = self.av_chir.swaplevel(1, 0, axis=1)
@@ -304,11 +313,10 @@ class chirality_model:
         # Create a Dirilecht distribution to deal with this
         num_edges = len(self.cur_chir_sectors.groupby(['plateID','label']))
 
-        sector_dir = pymc.Dirichlet('sector_dir', np.ones(num_edges), trace=False)
-        sector_dir.random()
-        model_dict['sector_dir'] = sector_dir
-        sector_weights = pymc.CompletedDirichlet('sector_weights', sector_dir)
-        model_dict['sector_weights'] = sector_weights
+        chir_dir = pymc.Dirichlet('chir_dir', np.ones(num_edges), trace=False)
+        model_dict['chir_dir'] = chir_dir
+        chir_weights = pymc.CompletedDirichlet('chir_weights', chir_dir)
+        model_dict['chir_weights'] = chir_weights
         # When calculating averages, use these weights!
 
         #####################
@@ -317,10 +325,8 @@ class chirality_model:
 
         # We must dynamically bin this data, unfortunately :(
 
-        chir_pivot = self.cur_chir_sectors.set_index(keys = ['plateID', 'label'])
-
         @pymc.deterministic()
-        def rebin_cur_chir_sectors(sector_weights = sector_weights[0]):
+        def rebin_cur_chir_sectors(sector_weights = chir_weights[0]):
             group = self.cur_chir_sectors.groupby(['plateID', 'label'])
             count = 0
             df = pd.DataFrame()
@@ -329,6 +335,103 @@ class chirality_model:
                 df = df.append(g)
                 count += 1
             self.cur_chir_sectors = df
+            self.rebin_chir_sectors()
+
+            # Now calculate everything that you need to
+            log_r_ri = self.av_chir['log_r_div_ri', 'mean'].values
+
+            dthetaDataChir = self.av_chir['rotated_righthanded', 'mean'].values
+            dthetaStdChir = self.av_chir['rotated_righthanded', 'std'].values
+            dthetaTauChir = 1.0/dthetaStdChir**2
+
+            # Drop the 0 dtheta piece with infinite accuracy; already accounted for in the model
+            points = np.isfinite(dthetaTauChir)
+
+            dthetaDataChir = dthetaDataChir[points]
+            log_r_ri = log_r_ri[points]
+            dthetaTauChir = dthetaTauChir[points]
+
+            return np.array([log_r_ri, dthetaDataChir, dthetaTauChir], dtype=float)
+
+        vperp = pymc.Normal('vperp', mu=0, tau=1./(1.**2), value=1.*10.**-3)
+        model_dict['vperp'] = vperp
+
+        @pymc.deterministic
+        def modeled_dtheta(vperp=vperp, vpar=vpar, log_r_ri = rebin_cur_chir_sectors[0]):
+            return (vperp/vpar) * log_r_ri
+
+        # Everything is specified here...so we now just have a potential, essentially,
+        # as a stochastic is just confusing
+        @pymc.potential()
+        def dtheta(mu=modeled_dtheta, tau=rebin_cur_chir_sectors[2], value=rebin_cur_chir_sectors[1]):
+            tempvalue = value.value # I have no idea why this needs to be here
+            return pymc.normal_like(tempvalue, mu, tau)
+
+        model_dict['dtheta'] = dtheta
+
+        ############################
+        # Weighting Diffusion Data #
+        ############################
+        # Create a Dirilecht distribution to deal with this
+        num_edges = len(self.cur_diff_sectors.groupby(['plateID','label']))
+
+        diff_dir = pymc.Dirichlet('diff_dir', np.ones(num_edges), trace=False)
+        model_dict['diff_dir'] = diff_dir
+        diff_weights = pymc.CompletedDirichlet('diff_weights', diff_dir)
+        model_dict['diff_weights'] = diff_weights
+
+        #############################
+        # Modeling Diffusion Data ###
+        #############################
+
+        @pymc.deterministic()
+        def rebin_cur_diff_sectors(sector_weights = diff_weights[0]):
+            group = self.cur_diff_sectors.groupby(['plateID', 'label'])
+            count = 0
+            df = pd.DataFrame()
+            for n, g in group:
+                g['binning_weights'] = sector_weights[count]
+                df = df.append(g)
+                count += 1
+            self.cur_diff_sectors = df
+            self.rebin_diff_sectors()
+
+            # Now calculate everything that you need to
+
+            dif_xaxis = self.av_diff['1divri_minus_1divr_1divum', 'mean'].values
+            dtheta_variance = self.av_diff['rotated_righthanded', 'var'].values
+
+            # Estimating the error of the variance
+            numSamples = self.av_diff['rotated_righthanded', 'len'].values
+            dtheta_variance_error = np.sqrt(2*np.sqrt(dtheta_variance)**4/(numSamples - 1))
+            dtheta_variance_tau = 1./dtheta_variance_error**2
+
+            # Drop the infinite variance piece
+            points = np.isfinite(dtheta_variance_tau)
+
+            dtheta_variance = dtheta_variance[points]
+            dif_xaxis = dif_xaxis[points]
+            dtheta_variance_tau = dtheta_variance_tau[points]
+
+            return np.array([dif_xaxis, dtheta_variance, dtheta_variance_tau], dtype=float)
+
+        ds = create_scale_invariant('ds', lower=10.**-2, upper=10**2, value=1.)
+
+        model_dict['ds'] = ds
+
+        @pymc.deterministic
+        def modeled_variance(vpar=vpar, ds=ds, dif_xaxis=rebin_cur_diff_sectors[0]):
+            return (2*ds/vpar)*dif_xaxis
+
+        @pymc.potential
+        def var_dtheta(mu = modeled_variance, value=rebin_cur_diff_sectors[1],
+                       tau = rebin_cur_diff_sectors[2]):
+            print value # This is the problem...it is not a vector and I don't know why.
+            print tau
+            print mu
+            return pymc.truncated_normal_like(x=value, mu=mu, tau=tau, a=0)
+
+        model_dict['var_dtheta'] = var_dtheta
 
         ###### Done! #######
         self.pymc_model = model_dict
