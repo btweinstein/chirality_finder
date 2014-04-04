@@ -101,9 +101,11 @@ class chirality_model:
         # Set up the pymc model
         if bootstrap:
             self.remake_pymc_bootstrap(**self.kwargs)
+            dbname = self.group_on_name + '_' + str(self.group_on_value)+'_bootstrap.pkl'
         else:
             self.remake_pymc_model(**self.kwargs)
-        self.M = pymc.MCMC(self.pymc_model, db='pickle', dbname=self.group_on_name + '_' + str(self.group_on_value)+'.pkl')
+            dbname = self.group_on_name + '_' + str(self.group_on_value)+'.pkl'
+        self.M = pymc.MCMC(self.pymc_model, db='pickle', dbname=dbname)
         self.N = pymc.MAP(self.pymc_model)
 
     def rebin_all_data(self, lenToFilterChir = 0, lenToFilterDiff=0, numChirBins=50, numDiffBins=50, verbose=True, **kwargs):
@@ -260,23 +262,6 @@ class chirality_model:
 
     def remake_pymc_bootstrap(self, **kwargs):
 
-        # Utility Functions
-        def weighted_average(x):
-            weights = x['binning_weights']
-            x = x.drop('bins', axis=1)
-            average = x.apply(np.average, weights=weights)
-
-            return average
-
-        def weighted_variance(x):
-            weights = x['binning_weights']
-            x = x.drop('bins', axis=1)
-            average = x.apply(np.average, weights=weights)
-            variance = (x-average)**2.
-            variance = variance.apply(np.average, weights=weights)
-
-            return variance
-
         model_dict = {}
         ######################
         ### Velocity Piece ###
@@ -347,16 +332,14 @@ class chirality_model:
                 df = df.append(g)
                 count += 1
             self.cur_chir_sectors = df
-            # Just calculate the stuff you need now.
-            av_groups = self.cur_chir_sectors.groupby('bins')
+            self.rebin_chir_sectors()
 
             # Calculate everything you need to
 
-            averages = av_groups.apply(weighted_average)
-            log_r_ri = averages['log_r_div_ri'].values
-            dthetaDataChir = averages['rotated_righthanded'].values
-            dthetaVarChir = av_groups.apply(weighted_variance)['rotated_righthanded'].values
-            dthetaTauChir = 1.0/dthetaVarChir
+            log_r_ri = self.av_chir['log_r_div_ri', 'mean'].values
+            dthetaDataChir = self.av_chir['rotated_righthanded', 'mean'].values
+            dthetaStdChir = self.av_chir['rotated_righthanded', 'std'].values
+            dthetaTauChir = 1.0/dthetaStdChir**2
 
             # Drop the 0 dtheta piece with infinite accuracy; already accounted for in the model
             points = np.isfinite(dthetaTauChir)
@@ -408,16 +391,15 @@ class chirality_model:
                 df = df.append(g)
                 count += 1
             self.cur_diff_sectors = df
-
-            av_groups = self.cur_diff_sectors.groupby('bins')
+            self.rebin_diff_sectors()
 
             # Now calculate everything that you need to
 
-            dif_xaxis = av_groups.apply(weighted_average)['1divri_minus_1divr_1divum'].values
-            dtheta_variance = av_groups.apply(weighted_variance)['rotated_righthanded'].values
+            dif_xaxis = self.av_diff['1divri_minus_1divr_1divum', 'mean'].values
+            dtheta_variance = self.av_diff['rotated_righthanded', 'var'].values
 
             # Estimating the error of the variance
-            numSamples = av_groups.agg(len).values
+            numSamples = self.av_diff['rotated_righthanded', 'len'].values
             dtheta_variance_error = np.sqrt(2*np.sqrt(dtheta_variance)**4/(numSamples - 1))
             dtheta_variance_tau = 1./dtheta_variance_error**2
 
