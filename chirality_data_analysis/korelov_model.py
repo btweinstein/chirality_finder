@@ -14,6 +14,7 @@ import data_analysis
 
 
 
+
 ### Utility Functions
 
 def create_scale_invariant(name, lower = 10.**-20, upper=1, value = 10.**-5):
@@ -142,6 +143,8 @@ class chirality_model:
 
     def rebin_sectors(self):
         '''Sectors are already filtered by length. You just have to do a weighted mean here.'''
+
+        print self.cur_chir_sectors['binning_weights']
 
         self.av_chir = self.cur_chir_sectors.groupby('bins').apply(weighted_info)
         self.av_chir = self.av_chir.swaplevel(1, 0, axis=1)
@@ -295,14 +298,14 @@ class chirality_model:
             count += 1
 
         #######################
-        ### Weighting Sectors ##
+        ### Weighting Sectors #
         #######################
 
-        edge_group = self.cur_chir.groupby(['plateID', 'label'])
         # Create a Dirilecht distribution to deal with this
-        num_edges = len(edge_group)
+        num_edges = len(self.cur_chir_sectors.groupby(['plateID','label']))
 
         sector_dir = pymc.Dirichlet('sector_dir', np.ones(num_edges), trace=False)
+        sector_dir.random()
         model_dict['sector_dir'] = sector_dir
         sector_weights = pymc.CompletedDirichlet('sector_weights', sector_dir)
         model_dict['sector_weights'] = sector_weights
@@ -313,6 +316,19 @@ class chirality_model:
         #####################
 
         # We must dynamically bin this data, unfortunately :(
+
+        chir_pivot = self.cur_chir_sectors.set_index(keys = ['plateID', 'label'])
+
+        @pymc.deterministic()
+        def rebin_cur_chir_sectors(sector_weights = sector_weights[0]):
+            group = self.cur_chir_sectors.groupby(['plateID', 'label'])
+            count = 0
+            df = pd.DataFrame()
+            for n, g in group:
+                g['binning_weights'] = sector_weights[count]
+                df = df.append(g)
+                count += 1
+            self.cur_chir_sectors = df
 
         ###### Done! #######
         self.pymc_model = model_dict
