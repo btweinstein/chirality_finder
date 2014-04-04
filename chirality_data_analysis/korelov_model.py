@@ -10,12 +10,6 @@ import statsmodels.api as sm
 import data_analysis
 
 
-
-
-
-
-
-
 ### Utility Functions
 
 def create_scale_invariant(name, lower = 10.**-20, upper=1, value = 10.**-5):
@@ -278,7 +272,7 @@ class chirality_model:
         # Create a dirilect distribution to add fluctuations
         vpar_dir = pymc.Dirichlet('vpar_dir', np.ones(num_plates), trace=False)
         model_dict['vpar_dir'] = vpar_dir
-        vpar_weights = pymc.CompletedDirichlet('vpar_weights', vpar_dir)
+        vpar_weights = pymc.CompletedDirichlet('vpar_weights', vpar_dir, trace=True)
         model_dict['vpar_weights'] = vpar_weights
 
         count = 0
@@ -315,7 +309,7 @@ class chirality_model:
 
         chir_dir = pymc.Dirichlet('chir_dir', np.ones(num_edges), trace=False)
         model_dict['chir_dir'] = chir_dir
-        chir_weights = pymc.CompletedDirichlet('chir_weights', chir_dir)
+        chir_weights = pymc.CompletedDirichlet('chir_weights', chir_dir, trace=True)
         model_dict['chir_weights'] = chir_weights
         # When calculating averages, use these weights!
 
@@ -325,7 +319,7 @@ class chirality_model:
 
         # We must dynamically bin this data, unfortunately :(
 
-        @pymc.deterministic()
+        @pymc.deterministic(dtype=float)
         def rebin_cur_chir_sectors(sector_weights = chir_weights[0]):
             group = self.cur_chir_sectors.groupby(['plateID', 'label'])
             count = 0
@@ -337,9 +331,9 @@ class chirality_model:
             self.cur_chir_sectors = df
             self.rebin_chir_sectors()
 
-            # Now calculate everything that you need to
-            log_r_ri = self.av_chir['log_r_div_ri', 'mean'].values
+            # Calculate everything you need to
 
+            log_r_ri = self.av_chir['log_r_div_ri', 'mean'].values
             dthetaDataChir = self.av_chir['rotated_righthanded', 'mean'].values
             dthetaStdChir = self.av_chir['rotated_righthanded', 'std'].values
             dthetaTauChir = 1.0/dthetaStdChir**2
@@ -347,11 +341,11 @@ class chirality_model:
             # Drop the 0 dtheta piece with infinite accuracy; already accounted for in the model
             points = np.isfinite(dthetaTauChir)
 
-            dthetaDataChir = dthetaDataChir[points]
             log_r_ri = log_r_ri[points]
+            dthetaDataChir = dthetaDataChir[points]
             dthetaTauChir = dthetaTauChir[points]
 
-            return np.array([log_r_ri, dthetaDataChir, dthetaTauChir], dtype=float)
+            return np.array([log_r_ri, dthetaDataChir, dthetaTauChir])
 
         vperp = pymc.Normal('vperp', mu=0, tau=1./(1.**2), value=1.*10.**-3)
         model_dict['vperp'] = vperp
@@ -363,9 +357,9 @@ class chirality_model:
         # Everything is specified here...so we now just have a potential, essentially,
         # as a stochastic is just confusing
         @pymc.potential()
-        def dtheta(mu=modeled_dtheta, tau=rebin_cur_chir_sectors[2], value=rebin_cur_chir_sectors[1]):
-            tempvalue = value.value # I have no idea why this needs to be here
-            return pymc.normal_like(tempvalue, mu, tau)
+        def dtheta(mu=modeled_dtheta, tau=rebin_cur_chir_sectors[2],
+                   x=rebin_cur_chir_sectors[1]):
+            return pymc.normal_like(x, mu, tau)
 
         model_dict['dtheta'] = dtheta
 
@@ -377,14 +371,14 @@ class chirality_model:
 
         diff_dir = pymc.Dirichlet('diff_dir', np.ones(num_edges), trace=False)
         model_dict['diff_dir'] = diff_dir
-        diff_weights = pymc.CompletedDirichlet('diff_weights', diff_dir)
+        diff_weights = pymc.CompletedDirichlet('diff_weights', diff_dir, trace=True)
         model_dict['diff_weights'] = diff_weights
 
         #############################
         # Modeling Diffusion Data ###
         #############################
 
-        @pymc.deterministic()
+        @pymc.deterministic(dtype=np.float)
         def rebin_cur_diff_sectors(sector_weights = diff_weights[0]):
             group = self.cur_diff_sectors.groupby(['plateID', 'label'])
             count = 0
@@ -413,7 +407,7 @@ class chirality_model:
             dif_xaxis = dif_xaxis[points]
             dtheta_variance_tau = dtheta_variance_tau[points]
 
-            return np.array([dif_xaxis, dtheta_variance, dtheta_variance_tau], dtype=float)
+            return np.array([dif_xaxis, dtheta_variance, dtheta_variance_tau])
 
         ds = create_scale_invariant('ds', lower=10.**-2, upper=10**2, value=1.)
 
@@ -424,12 +418,9 @@ class chirality_model:
             return (2*ds/vpar)*dif_xaxis
 
         @pymc.potential
-        def var_dtheta(mu = modeled_variance, value=rebin_cur_diff_sectors[1],
+        def var_dtheta(mu = modeled_variance, x=rebin_cur_diff_sectors[1],
                        tau = rebin_cur_diff_sectors[2]):
-            print value # This is the problem...it is not a vector and I don't know why.
-            print tau
-            print mu
-            return pymc.truncated_normal_like(x=value, mu=mu, tau=tau, a=0)
+            return pymc.truncated_normal_like(x=x, mu=mu, tau=tau, a=0)
 
         model_dict['var_dtheta'] = var_dtheta
 
