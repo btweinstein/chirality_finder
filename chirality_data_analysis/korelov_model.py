@@ -11,6 +11,7 @@ import data_analysis
 
 
 
+
 ### Utility Functions
 
 def create_scale_invariant(name, lower = 10.**-20, upper=1, value = 10.**-5):
@@ -29,10 +30,6 @@ def create_scale_invariant(name, lower = 10.**-20, upper=1, value = 10.**-5):
             return lower * (upper/lower)**u
 
     return scale_invariant
-
-def resample_df(df):
-    rows = np.random.choice(df.index, len(df.index))
-    return df.ix[rows]
 
 def weighted_info(x):
     weights = x['binning_weights']
@@ -94,6 +91,14 @@ class chirality_model:
         # Set equal weights for the binning; changes for the bootstrap
         edge_groups = self.cur_chir.groupby(['plateID', 'label'])
         self.cur_chir['binning_weights'] = 1./len(edge_groups)
+
+        label_count = 0
+        df = pd.DataFrame()
+        for n, g in edge_groups:
+            g['edge_id'] = label_count
+            df = df.append(g)
+            label_count += 1
+        self.cur_chir = df
 
         # Set up the system
         self.rebin_all_data(**self.kwargs)
@@ -261,6 +266,9 @@ class chirality_model:
     ########### Creating Models #############
 
     def remake_pymc_bootstrap(self, **kwargs):
+
+        # TODO: This is currently all wrong as you need to assign each sector
+        # the SAME weight regardless of binning...
 
         model_dict = {}
         ######################
@@ -599,32 +607,52 @@ class chirality_model:
         return {'vpar' : vpar, 'vperp' : vperp, 'Ds' : Ds}
 
     def frequentist_linearfit_bootstrap(self, numIterations, plot=False):
-        # This is a little silly as we calculate the error AFTER we have selected the sectors
-        # and averaged them. We probably want to bootstrap SELECTING the sectors. Right?
-        # It is worth figuring out regardless, assuming it does not take too long.
 
         vpar = np.empty(numIterations)
         vperp = np.empty(numIterations)
         Ds = np.empty(numIterations)
 
+        unique_vpar_plates = self.cur_growth['plateID'].unique()
+        # Give each sector an id
+        unique_edges = self.cur_chir['edge_id'].unique()
+
+        def resample_current_growth(df):
+            plates = np.random.choice(unique_vpar_plates, len(unique_vpar_plates))
+            return df.ix[plates]
+
+        def resample_sectors(df):
+            sectors = np.random.choice(unique_edges, len(unique_edges))
+            return df.ix[sectors]
+
+        original_chir = self.cur_chir
+        original_av_chir = self.av_chir
+        original_av_diff = self.av_diff
+
         for i in range(numIterations):
             # Sample from the data appropriately
-            currentGrowth = resample_df(self.cur_growth)
+            currentGrowth = self.cur_growth.set_index('plateID')
+            currentGrowth = resample_current_growth(currentGrowth)
             if plot: plt.plot(currentGrowth['timeDelta'], currentGrowth['colony_radius_um'], 'o')
 
-            if plot: plt.figure()
-            av_chir = resample_df(self.av_chir)
-            if plot: plt.plot(av_chir['log_r_div_ri', 'mean'], av_chir['rotated_righthanded', 'mean'], 'o')
+            new_chir = original_chir.set_index('edge_id')
+            self.cur_chir = resample_sectors(new_chir)
 
-            if plot: plt.figure()
-            av_diff = resample_df(self.av_diff)
-            if plot: plt.plot(av_diff['1divri_minus_1divr_1divum', 'mean'], av_diff['rotated_righthanded', 'var'], 'o')
+            self.rebin_all_data(**self.kwargs)
+            if plot: self.plot_av_chirality()
+            if plot: self.plot_av_diffusion()
 
-            self.frequentist_fit(currentGrowth=currentGrowth, av_chir= av_chir, av_diff=av_diff)
+            self.frequentist_fit(currentGrowth=currentGrowth)
             params = self.get_params_frequentist()
+            self.cur_chir=original_chir
 
             vpar[i] = params['vpar']
             vperp[i] = params['vperp']
             Ds[i] = params['Ds']
+
+            if np.mod(i, 50) == 0:
+                print i
+
+        self.av_chir = original_av_chir
+        self.av_diff = original_av_diff
 
         return pd.DataFrame({'vpar' : vpar, 'vperp' : vperp, 'Ds' : Ds})

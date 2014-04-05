@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name='chirality_finder',
-    version='1.3',
+    version='1.4',
     packages=['chirality_data_analysis', 'chirality_image_analysis'],
     url='',
     license='GPL',
