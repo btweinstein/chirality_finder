@@ -12,6 +12,7 @@ import data_analysis
 
 
 
+
 ### Utility Functions
 
 def create_scale_invariant(name, lower = 10.**-20, upper=1, value = 10.**-5):
@@ -76,6 +77,9 @@ class chirality_model:
         self.av_chir = None
         self.av_diff = None
 
+        self.cur_chir_bins = None
+        self.cur_diff_bins = None
+
         # Pymc Variables
         self.pymc_model = None
 
@@ -132,11 +136,13 @@ class chirality_model:
 
         if verbose: print 'Setting up the simulation for' , self.group_on_name , '=' , self.group_on_value , '...'
 
-        self.cur_chir_sectors, self.av_chir = self.binChiralityData(numChirBins, 'log_r_div_ri', lenToFilter = lenToFilterChir,
+        self.cur_chir_bins, self.cur_chir_sectors, self.av_chir = \
+            self.binChiralityData(numChirBins, 'log_r_div_ri', lenToFilter = lenToFilterChir,
                                              verbose=verbose, **kwargs)
         if verbose: self.plot_av_chirality(**self.kwargs)
 
-        self.cur_diff_sectors, self.av_diff = self.binChiralityData(numDiffBins, '1divri_minus_1divr_1divum', lenToFilter = lenToFilterDiff,
+        self.cur_diff_bins, self.cur_diff_sectors, self.av_diff = \
+            self.binChiralityData(numDiffBins, '1divri_minus_1divr_1divum', lenToFilter = lenToFilterDiff,
                                              verbose=verbose, **kwargs)
         if verbose: self.plot_av_diffusion(**kwargs)
 
@@ -165,21 +171,19 @@ class chirality_model:
         self.av_diff = self.av_diff.swaplevel(1,0, axis=1)
         self.av_diff.sort([('1divri_minus_1divr_1divum', 'mean')], inplace=True)
 
-    def binChiralityData(self, numChirBins, bin_on, lenToFilter = 0, verbose=True, **kwargs):
+    def binChiralityData(self, numBins, bin_on, lenToFilter = 0, verbose=True, bins=None, **kwargs):
         '''Returns the average data per sector in each plate binned over the desired radius.'''
 
-        min_x = self.cur_chir[bin_on].min() - 10.**-6.
-        max_x = self.cur_chir[bin_on].max() + 10.**-6.
-        numBins = numChirBins
+        if bins is None:
+            min_x = self.cur_chir[bin_on].min()
+            max_x = self.cur_chir[bin_on].max()
+            bins, binsize = np.linspace(min_x, max_x, numBins, retstep=True)
 
-        if verbose:
-            print 'numBins for ', bin_on, ':' , numBins
-            print 'Min ', bin_on, ':', min_x
-            print 'Max ', bin_on, ':', max_x
-
-        bins, binsize = np.linspace(min_x, max_x, numBins, retstep=True)
-
-        if verbose: print 'Dimensionless Binsize for ', bin_on, ':' , binsize
+            if verbose:
+                print 'numBins for ', bin_on, ':' , numBins
+                print 'Min ', bin_on, ':', min_x
+                print 'Max ', bin_on, ':', max_x
+                print 'Dimensionless Binsize for ', bin_on, ':' , binsize
 
         # TAKE MEAN OF ALL EDGES. DO NOT BOOTSTRAP HERE
 
@@ -187,8 +191,6 @@ class chirality_model:
         sectorData = sector_groups.agg(np.mean)
 
         sectorData = sectorData.rename(columns={bin_on : bin_on + '_mean'})
-
-
         sectorData = sectorData.reset_index()
         sectorData = sectorData.rename(columns={bin_on : 'bins',
                                                bin_on + '_mean' : bin_on})
@@ -209,7 +211,7 @@ class chirality_model:
         av_currentChiralityData = sectorData.groupby(['bins']).agg(self.aggList)
         av_currentChiralityData = av_currentChiralityData.sort([(bin_on, 'mean')])
 
-        return sectorData, av_currentChiralityData
+        return bins, sectorData, av_currentChiralityData
 
     def plot_av_chirality(self, **kwargs):
         x = self.av_chir['log_r_div_ri', 'mean'].values
@@ -605,6 +607,59 @@ class chirality_model:
         Ds = (1./2.) * vpar * two_Ds_vpar
 
         return {'vpar' : vpar, 'vperp' : vperp, 'Ds' : Ds}
+
+    def get_bootstrap_sectors(self, numIterations):
+        '''Uses a bootstrap sampling scheme to get the mean and variance for the
+        specified bins.'''
+
+        #TODO: Make zero bins not count toward average
+
+        # Get each edges' ID
+        unique_edges = self.cur_chir['edge_id'].unique()
+
+        def resample_sectors(df):
+            sectors = np.random.choice(unique_edges, len(unique_edges))
+            return df.ix[sectors]
+
+        original_chir = self.cur_chir
+        original_av_chir = self.av_chir
+        original_av_diff = self.av_diff
+
+        # Get the bins that we will repeatedly use
+
+        original_chir_bins = self.cur_chir_bins
+        original_diff_bins = self.cur_diff_bins
+
+        bootstrap_av_chir_df = pd.DataFrame()
+        bootstrap_av_diff_df = pd.DataFrame()
+
+        for i in range(numIterations):
+
+            new_chir = original_chir.set_index('edge_id')
+            self.cur_chir = resample_sectors(new_chir)
+
+            self.cur_chir_bins, self.cur_chir_sectors, self.av_chir = \
+                self.binChiralityData(None, 'log_r_div_ri', bins=original_chir_bins, **self.kwargs)
+
+            self.cur_diff_bins, self.cur_diff_sectors, self.av_diff = \
+                self.binChiralityData(None, '1divri_minus_1divr_1divum', bins=original_diff_bins, **self.kwargs)
+
+            # Add to the list of data
+
+            self.av_chir['bootstrap_iter'] = i
+            self.av_diff['bootstrap_iter'] = i
+
+            bootstrap_av_chir_df = bootstrap_av_chir_df.append(self.av_chir)
+            bootstrap_av_diff_df = bootstrap_av_diff_df.append(self.av_diff)
+
+            if np.mod(i, 50) == 0:
+                print i
+
+        self.cur_chir = original_chir
+        self.av_chir = original_av_chir
+        self.av_diff = original_av_diff
+
+        return bootstrap_av_chir_df, bootstrap_av_diff_df
 
     def frequentist_linearfit_bootstrap(self, numIterations, plot=False):
 
