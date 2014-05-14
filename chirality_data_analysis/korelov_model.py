@@ -10,9 +10,6 @@ import statsmodels.api as sm
 import data_analysis
 
 
-
-
-
 ### Utility Functions
 
 def create_scale_invariant(name, lower = 10.**-20, upper=1, value = 10.**-5):
