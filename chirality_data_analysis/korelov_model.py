@@ -10,6 +10,7 @@ import statsmodels.api as sm
 import data_analysis
 
 
+
 ### Utility Functions
 
 def create_scale_invariant(name, lower = 10.**-20, upper=1, value = 10.**-5):
@@ -266,8 +267,7 @@ class chirality_model:
 
     def remake_pymc_bootstrap(self, **kwargs):
 
-        # TODO: This is currently all wrong as you need to assign each sector
-        # the SAME weight regardless of binning...
+        # TODO: This is currently all wrong as you need to assign each sector the SAME weight regardless of binning...
 
         model_dict = {}
         ######################
@@ -296,7 +296,7 @@ class chirality_model:
                 return vpar*t
 
             rname = 'R_' + str(int(n))
-            R = pymc.TruncatedNormal(rname, mu = modeled_R, tau=1.0/(0.1*1000)**2, a=0, \
+            R = pymc.TruncatedNormal(rname, mu = modeled_R, tau=1.0/(200)**2, a=0, \
                                      value=g['deltaR'].values, observed=True)
             model_dict[rname] = R
 
@@ -447,14 +447,14 @@ class chirality_model:
 
         plates = self.cur_growth.groupby('plateID')
 
-        vpar = create_scale_invariant('vpar', lower=10.**-5, upper=1, value=1.*10**-3)
+        vpar = pymc.Uniform('vpar', lower=10.**-4., upper=10.**0., value=1.*10**-2)
         t = self.cur_growth['timeDelta'].values
 
         @pymc.deterministic
         def modeled_R(vpar=vpar, t=t):
             return vpar*t
 
-        R = pymc.TruncatedNormal('R', mu = modeled_R, tau=1.0/(0.1*1000)**2, a=0, \
+        R = pymc.TruncatedNormal('R', mu = modeled_R, tau=1.0/(100.)**2., a=0, \
                                  value=self.cur_growth['deltaR'].values, observed=True)
 
         #######################
@@ -463,10 +463,12 @@ class chirality_model:
 
         log_r_ri = self.av_chir['log_r_div_ri', 'mean'].values
 
-        vperp = pymc.Normal('vperp', mu=0, tau=1./(1.**2), value=1.*10.**-3)
+        vperp = pymc.Uniform('vperp', lower=-1., upper=1., value=0)
 
         dthetaDataChir = self.av_chir['rotated_righthanded', 'mean'].values
-        dthetaStdChir = self.av_chir['rotated_righthanded', 'std'].values
+        # We must use the standard error of the mean or this makes no sense.
+        dthetaStdChir = self.av_chir['rotated_righthanded', 'std'].values \
+                        / np.sqrt(self.av_chir['numSectors', 'len'])
         dthetaTauChir = 1.0/dthetaStdChir**2
 
         # Drop the 0 dtheta piece with infinite accuracy; already accounted for in the model
@@ -490,18 +492,18 @@ class chirality_model:
         dtheta_variance = self.av_diff['rotated_righthanded', 'var'].values
 
         # Estimating the error of the variance
-        numSamples = self.av_diff['rotated_righthanded', 'len'].values
+        numSamples = self.av_diff['numSectors', 'len'].values
         dtheta_variance_error = np.sqrt(2*np.sqrt(dtheta_variance)**4/(numSamples - 1))
         dtheta_variance_tau = 1./dtheta_variance_error**2
 
-        # Drop the infinite variance piece
+        # Drop the infinite variance piece as it is already accounted for
         points = np.isfinite(dtheta_variance_tau)
 
         dtheta_variance = dtheta_variance[points]
         dif_xaxis = dif_xaxis[points]
         dtheta_variance_tau = dtheta_variance_tau[points]
 
-        ds = create_scale_invariant('ds', lower=10.**-2, upper=10**2, value=1.)
+        ds = pymc.Uniform('ds', lower=10.**-3., upper=10., value=1.)
 
         @pymc.deterministic
         def modeled_variance(vpar=vpar, ds=ds, dif_xaxis=dif_xaxis):
@@ -532,7 +534,7 @@ class chirality_model:
         y, X = pat.dmatrices('colony_radius_um ~ timeDelta', data=currentGrowth,
                              return_type='dataframe')
 
-        radiusSigma = (200.*10.**3) * np.ones_like(y)
+        radiusSigma = 200 * np.ones_like(y)
         Ro_model = sm.WLS(y, X, weights=1/radiusSigma**2)
         self.Ro_results_freq = Ro_model.fit()
 
@@ -542,7 +544,8 @@ class chirality_model:
         log_r_ri = av_chir['log_r_div_ri', 'mean'].values
 
         dthetaDataChir = av_chir['rotated_righthanded', 'mean'].values
-        dthetaStdChir = av_chir['rotated_righthanded', 'std'].values
+        dthetaStdChir = av_chir['rotated_righthanded', 'std'].values \
+                        / np.sqrt(av_chir['numSectors', 'len'])
         dthetaTauChir = 1.0/dthetaStdChir**2
 
         # The first point error is technically 0 right now...so how do we include it?

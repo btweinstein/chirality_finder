@@ -14,7 +14,7 @@ editedDirectory = growthDirectory + '/Edited_Output'
 dataDirectory = baseDirectory + '/Analysis/Chirality'
 
 def get_all_data(output_folder = '/home/bryan/Documents/Research_Data/Nelson/all_analysis_data'):
-
+    '''Returns growth data, chirality data for the chloramphenicol experiment'''
     # Load growth data
 
     growthData = np.load(baseDirectory +'/ipython/combined_growth_data.pkl')['growthData']
