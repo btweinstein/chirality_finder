@@ -11,6 +11,7 @@ import data_analysis
 
 
 
+
 ### Utility Functions
 
 def create_scale_invariant(name, lower = 10.**-20, upper=1, value = 10.**-5):
@@ -468,7 +469,7 @@ class chirality_model:
         dthetaDataChir = self.av_chir['rotated_righthanded', 'mean'].values
         # We must use the standard error of the mean or this makes no sense.
         dthetaStdChir = self.av_chir['rotated_righthanded', 'std'].values \
-                        / np.sqrt(self.av_chir['numSectors', 'len'])
+                        / np.sqrt(self.av_chir['numSectors', 'len'].values)
         dthetaTauChir = 1.0/dthetaStdChir**2
 
         # Drop the 0 dtheta piece with infinite accuracy; already accounted for in the model
@@ -545,7 +546,7 @@ class chirality_model:
 
         dthetaDataChir = av_chir['rotated_righthanded', 'mean'].values
         dthetaStdChir = av_chir['rotated_righthanded', 'std'].values \
-                        / np.sqrt(av_chir['numSectors', 'len'])
+                        / np.sqrt(av_chir['numSectors', 'len'].values)
         dthetaTauChir = 1.0/dthetaStdChir**2
 
         # The first point error is technically 0 right now...so how do we include it?
